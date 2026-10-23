@@ -1,0 +1,239 @@
+/* ABO Pixel Tracker 0.3.0 – independent retro UI, accessible day/night color palettes.
+   Pretendard is an optional remote web font; OS sans-serif fallbacks work offline. */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css');
+/* Entry points live in SillyTavern's own extension menu/settings, never on top of chat. */
+#extensionsMenu #abop-extension-menu-entry{cursor:pointer;min-height:42px;align-items:center}
+#extensionsMenu #abop-extension-menu-entry:focus-visible{outline:2px solid var(--SmartThemeQuoteColor,#83cabe);outline-offset:-2px}
+#abop-panel{--ab-bg:#1d2940;--ab-main:#202e46;--ab-card:#293b55;--ab-raised:#33465f;--ab-control:#213048;--ab-nav:#23354e;--ab-titlebar:#3a446a;--ab-text:#f0f5ff;--ab-heading:#fff;--ab-muted:#c4d0e0;--ab-secondary:#b6c7e2;--ab-line:#647c9c;--ab-soft-line:#49617e;--ab-mint:#93e0cf;--ab-lilac:#ccbcff;--ab-pink:#f0b7d1;--ab-button:#435d82;--ab-button-hover:#5877a3;--ab-ring:#a2eee1;--ab-footer:#273953;--ab-shadow:rgba(8,13,31,.5);--ab-meter-bg:#17243a;--ab-tag-bg:#233651;
+ display:none;position:fixed;inset:0;z-index:11001;background:rgba(7,14,30,.62);padding:clamp(8px,3vw,28px);align-items:center;justify-content:center;
+ font-family:'Pretendard Variable',Pretendard,'SUIT','Noto Sans KR','Apple SD Gothic Neo',system-ui,-apple-system,sans-serif!important;
+ font-size:14px;color:var(--ab-text);line-height:1.56;letter-spacing:0}
+#abop-panel[data-theme=light]{--ab-bg:#f4f6ff;--ab-main:#f7f9ff;--ab-card:#fff;--ab-raised:#e9effb;--ab-control:#f4f7fd;--ab-nav:#e6eaf9;--ab-titlebar:#cdd9f3;--ab-text:#24334c;--ab-heading:#15233b;--ab-muted:#54657e;--ab-secondary:#4b5978;--ab-line:#9daecb;--ab-soft-line:#d1dbeb;--ab-mint:#156c62;--ab-lilac:#6552a5;--ab-pink:#ab4275;--ab-button:#e0e8f8;--ab-button-hover:#cbdaf0;--ab-ring:#268379;--ab-footer:#e8edf9;--ab-shadow:rgba(65,78,111,.2);--ab-meter-bg:#e0e7f2;--ab-tag-bg:#edf0fa;background:rgba(35,52,85,.42)}
+#abop-panel.abop-visible{display:flex}
+#abop-panel *,#abop-panel *::before,#abop-panel *::after{box-sizing:border-box}
+#abop-panel button,#abop-panel input,#abop-panel select,#abop-panel textarea{font:inherit;color:inherit}
+#abop-panel input,#abop-panel textarea,#abop-panel select{accent-color:var(--ab-mint)}
+#abop-panel button{cursor:pointer}
+#abop-panel .abop-window{background:var(--ab-bg);max-width:1020px;width:100%;max-height:min(90vh,920px);border:2px solid var(--ab-line);box-shadow:0 0 0 3px var(--ab-bg),0 22px 65px var(--ab-shadow);border-radius:4px;display:flex;flex-direction:column;overflow:hidden}
+#abop-panel .abop-top{display:flex;gap:10px;align-items:center;background:linear-gradient(105deg,var(--ab-titlebar),var(--ab-raised));border-bottom:1px solid var(--ab-line);padding:11px 15px;font-size:14px;letter-spacing:.8px;color:var(--ab-heading)}
+#abop-panel .abop-top strong{flex:1;font-weight:800}
+/* A single CSS-drawn pixel emblem replaces mismatched font-dependent glyphs. */
+#abop-panel .abop-brandmark{display:inline-block;position:relative;flex:0 0 18px;width:18px;height:18px;background:var(--ab-control);border:1px solid var(--ab-mint);border-radius:1px;box-shadow:2px 2px 0 var(--ab-soft-line)}
+#abop-panel .abop-brandmark::before{content:'';display:block;position:absolute;left:3px;top:3px;width:4px;height:4px;background:var(--ab-mint);box-shadow:6px 0 var(--ab-mint),0 6px var(--ab-mint),6px 6px var(--ab-mint)}
+#abop-panel .abop-top .abop-version{font-size:11px;color:var(--ab-secondary)}
+#abop-panel .abop-top button{background:var(--ab-control);border:1px solid var(--ab-line);color:var(--ab-heading);border-radius:3px;min-width:31px;min-height:30px}
+#abop-panel .abop-shell{display:flex;min-height:360px;overflow:hidden;flex:1}
+#abop-panel .abop-nav{width:98px;flex-shrink:0;background:var(--ab-nav);border-right:1px solid var(--ab-line);display:flex;flex-direction:column;align-items:stretch;padding-top:12px;gap:4px}
+#abop-panel .abop-nav button{background:none;border:0;border-left:3px solid transparent;color:var(--ab-secondary);min-height:64px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;padding:8px 2px}
+#abop-panel .abop-nav button span{font-size:22px;line-height:1;color:var(--ab-lilac)}
+#abop-panel .abop-nav button small{font-size:11px;letter-spacing:.25px;font-weight:650}
+#abop-panel .abop-nav button.selected{background:var(--ab-raised);border-left-color:var(--ab-mint);color:var(--ab-heading);font-weight:750}
+#abop-panel .abop-nav button.selected span{color:var(--ab-mint)}
+#abop-panel .abop-main{overflow:auto;flex:1;padding:18px 18px 15px;background:var(--ab-main)}
+#abop-panel .abop-subhead{display:flex;justify-content:space-between;color:var(--ab-secondary);font-weight:750;letter-spacing:.5px;font-size:12px;margin-bottom:15px;border-bottom:1px dashed var(--ab-line);padding-bottom:10px;gap:8px}
+#abop-panel .abop-dot{color:var(--ab-mint);font-size:11px}
+#abop-panel .abop-people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#abop-panel .abop-frame{border:1px solid var(--ab-line);background:var(--ab-card);box-shadow:inset 2px 2px var(--ab-raised),2px 2px 0 var(--ab-shadow);padding:15px;margin-bottom:14px;min-width:0;border-radius:3px}
+#abop-panel .abop-frame header{font-size:12px;font-weight:780;letter-spacing:.8px;color:var(--ab-lilac);border-bottom:1px solid var(--ab-soft-line);padding-bottom:9px;margin-bottom:12px}
+#abop-panel .abop-frame header small{float:right;font-size:11px;color:var(--ab-muted);letter-spacing:0;font-weight:400}
+#abop-panel .abop-icon{color:var(--ab-mint)}
+#abop-panel .abop-title{font-size:20px;letter-spacing:0;color:var(--ab-heading);font-family:inherit;font-weight:760;margin:0 0 12px;overflow-wrap:anywhere}
+#abop-panel .abop-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:15px}
+#abop-panel .abop-fields label{font-size:12px;color:var(--ab-secondary);font-weight:650;display:flex;flex-direction:column;gap:5px}
+#abop-panel select,#abop-panel input:not([type=checkbox]),#abop-panel textarea{background:var(--ab-control);border:1px solid var(--ab-line);border-radius:3px;padding:8px 9px;min-width:0;max-width:100%;outline-offset:2px;color:var(--ab-text)}
+#abop-panel select{font-size:14px;font-weight:600;line-height:1.5;min-height:37px}
+#abop-panel select option{background:var(--ab-card);color:var(--ab-text)}
+#abop-panel input::placeholder,#abop-panel textarea::placeholder{color:var(--ab-muted);opacity:.8}
+#abop-panel select:focus,#abop-panel input:focus,#abop-panel textarea:focus,#abop-panel button:focus-visible{outline:2px solid var(--ab-ring);outline-offset:2px}
+#abop-panel .abop-meterlabel{display:flex;justify-content:space-between;color:var(--ab-secondary);font-size:12px;font-weight:650;margin-top:10px}
+#abop-panel .abop-meter{border:1px solid var(--ab-line);height:11px;background:var(--ab-meter-bg);margin:6px 0 10px;padding:1px}
+#abop-panel .abop-meter>i{display:block;height:100%;background:repeating-linear-gradient(90deg,var(--ab-lilac) 0,var(--ab-lilac) 10px,transparent 10px,transparent 12px)}
+#abop-panel .abop-meter.mint>i{background:repeating-linear-gradient(90deg,var(--ab-mint) 0,var(--ab-mint) 10px,transparent 10px,transparent 12px)}
+#abop-panel .abop-tagrow{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+#abop-panel .abop-tagrow>span{border:1px solid var(--ab-line);color:var(--ab-secondary);background:var(--ab-tag-bg);padding:3px 7px;font-size:11px;text-transform:uppercase}
+#abop-panel .abop-muted{color:var(--ab-muted);font-size:12px}
+#abop-panel .abop-meta{color:var(--ab-lilac)}
+#abop-panel .abop-actions{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+#abop-panel button[data-action]:not([data-action=close]):not([data-action=themeCycle]){background:var(--ab-button);border:1px solid var(--ab-line);border-radius:3px;padding:8px 12px;margin:3px 4px 3px 0;color:var(--ab-heading);font-weight:700;font-size:13px}
+#abop-panel button[data-action]:not([data-action=close]):not([data-action=themeCycle]):hover{background:var(--ab-button-hover);border-color:var(--ab-mint)}
+#abop-panel button.abop-primary{background:#5168a5!important;color:white!important;border-color:#a5bceb!important}
+#abop-panel button.abop-primary:hover{background:#415993!important}
+#abop-panel .abop-actions input{width:155px}
+#abop-panel hr{border:0;border-top:1px dashed var(--ab-line);margin:16px 0}
+#abop-panel details{margin-top:13px;color:var(--ab-text)}
+#abop-panel summary{cursor:pointer;color:var(--ab-mint);font-size:12px;font-weight:700}
+#abop-panel .abop-line{padding:7px 0;border-bottom:1px dotted var(--ab-soft-line);overflow-wrap:anywhere}
+#abop-panel .abop-line small{color:var(--ab-lilac)}
+#abop-panel .abop-note{color:var(--ab-pink);border-left:2px solid var(--ab-pink);padding-left:10px;font-size:12px}
+#abop-panel .abop-number{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:8px 0;max-width:320px}
+#abop-panel .abop-number input{width:110px}
+#abop-panel .abop-check{display:flex;align-items:center;gap:8px;margin:10px 0;line-height:1.45;font-size:13px;cursor:pointer}
+#abop-panel .abop-check input{accent-color:var(--ab-mint);width:16px;height:16px;flex-shrink:0}
+#abop-panel footer{position:sticky;bottom:-15px;background:var(--ab-footer);border-top:1px solid var(--ab-line);padding:8px 12px;color:var(--ab-muted);font-size:12px;margin:14px -18px -15px;min-height:36px}
+#abop-panel .abop-fieldlabel{display:flex;flex-direction:column;gap:6px;margin:11px 0;color:var(--ab-secondary);font-size:13px;font-weight:650}
+#abop-panel .abop-fieldlabel select,#abop-panel .abop-fieldlabel input{width:100%;max-width:100%}
+#abop-panel .abop-api-fields{background:var(--ab-raised);border:1px dashed var(--ab-line);padding:12px;margin:10px 0}
+#abop-panel .abop-proposal-fields{display:flex;flex-direction:column;gap:7px}
+#abop-panel .abop-proposal-row{display:flex;align-items:flex-start;gap:13px;border:1px solid var(--ab-soft-line);background:var(--ab-raised);padding:10px;border-radius:3px;margin:7px 0}
+#abop-panel .abop-proposal-check{margin:7px 0}
+#abop-panel .abop-proposal-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+#abop-panel .abop-proposal-content input,#abop-panel .abop-proposal-content select{width:100%}
+#abop-panel .abop-proposal-content small{font-size:11px;color:var(--ab-muted)}
+#abop-panel .abop-rowhead{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-start}
+#abop-panel .abop-rowhead b{font-size:13px;color:var(--ab-heading)}
+#abop-panel .abop-basis{font-size:10px;letter-spacing:.5px;border:1px solid var(--ab-line);padding:2px 5px;color:var(--ab-secondary);background:var(--ab-card)}
+#abop-panel .abop-basis.explicit{color:var(--ab-mint);border-color:var(--ab-mint)}
+#abop-panel .abop-basis.suggested{color:var(--ab-lilac);border-color:var(--ab-lilac)}
+#abop-panel .abop-setup-subtitle{font-size:15px;color:var(--ab-heading);margin-top:21px;border-bottom:1px solid var(--ab-soft-line);padding-bottom:9px;display:flex;justify-content:space-between;gap:8px}
+#abop-panel .abop-setup-subtitle span{font-size:11px;color:var(--ab-muted);font-weight:400}
+#abop-panel .abop-attitude{justify-content:space-between;gap:12px;margin-top:15px}
+#abop-panel .abop-attitude select{min-width:130px;max-width:220px}
+#abop-panel .abop-applybar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+#abop-panel .abop-applybar p{flex:1}
+#abop-panel .abop-applybar button{white-space:nowrap}
+#abop-panel .abop-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:720px){#abop-panel{padding:4px;font-size:13px}#abop-panel .abop-window{height:96vh;max-height:96vh}#abop-panel .abop-top{font-size:12px;letter-spacing:.15px;gap:5px;padding:8px}#abop-panel .abop-nav{width:67px}#abop-panel .abop-nav button{min-height:58px}#abop-panel .abop-nav button small{font-size:9px}#abop-panel .abop-people{grid-template-columns:1fr}#abop-panel .abop-main{padding:13px 9px}#abop-panel .abop-subhead{font-size:10px}#abop-panel footer{margin:12px -9px -13px}#abop-panel .abop-applybar{flex-direction:column;align-items:stretch}#abop-panel .abop-setup-subtitle{flex-direction:column}}
+
+/* v0.3.8 - state-panel auto-save clarity and manual ABO confirmation */
+.abop-savebar{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin:.45rem 0 .7rem}
+.abop-savebar small{flex:1;min-width:12rem;font-size:.77rem;opacity:.84;line-height:1.5}
+.abop-savebar button{white-space:nowrap;font-size:.77rem;padding:.33rem .6rem}
+
+/* v0.3.9 - scoped controls for one active NPC in narrator/multi-character chats */
+#abop-panel .abop-npc{border-left:3px solid var(--ab-mint);background:linear-gradient(90deg,var(--ab-raised),var(--ab-card) 65%)}
+#abop-panel .abop-npc-controls{margin-top:12px;padding:12px;border:1px dashed var(--ab-line);background:var(--ab-card)}
+#abop-panel .abop-npc-controls .abop-fieldlabel{margin-top:9px}
+#abop-panel .abop-npc-controls details{border-top:1px dashed var(--ab-line);padding-top:10px}
+#abop-panel .abop-npc-controls textarea{width:100%;min-height:95px;resize:vertical}
+#abop-panel .abop-npc button:disabled{cursor:default;opacity:.55}
+
+/* v0.3.11: keep the compact title and additional event controls readable on phones. */
+#abop-panel .abop-top strong{min-width:0;overflow-wrap:anywhere}
+#abop-panel .abop-top strong small{font-size:10px;font-weight:600;opacity:.8}
+#abop-panel .abop-actions select[id^="abop-drug-"]{max-width:200px;flex:1 1 160px}
+#abop-panel .abop-actions select[id^="abop-drug-mode-"]{max-width:150px;flex:1 1 120px}
+@media(max-width:420px){#abop-panel .abop-top strong small{display:none}#abop-panel .abop-top strong{font-size:12px}}
+
+
+/* v0.3.17 | Mobile: use the actual visible viewport; keep header, tabs,
+   close control and status line in view while scrolling content separately. */
+#abop-panel .abop-shell{min-height:0;min-width:0}
+#abop-panel .abop-main{min-width:0;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#abop-panel .abop-top{flex-shrink:0}
+#abop-panel .abop-top button{flex-shrink:0}
+#abop-panel .abop-statusbar{flex:0 0 auto;position:static;bottom:auto;margin:0;border-top:1px solid var(--ab-line);padding:8px 13px;background:var(--ab-footer);color:var(--ab-muted);font-size:12px;min-height:36px;overflow-wrap:anywhere}
+@media(max-width:720px){
+  /* Position against visualViewport (iOS/Android browser chrome, keyboard). */
+  #abop-panel{
+    position:fixed!important;
+    inset:auto!important;
+    top:var(--abop-viewport-top,0px)!important;
+    left:var(--abop-viewport-left,0px)!important;
+    width:var(--abop-viewport-width,100vw)!important;
+    height:var(--abop-viewport-height,100dvh)!important;
+    max-width:none!important;
+    max-height:none!important;
+    padding:0!important;
+    margin:0!important;
+    border:0!important;
+    align-items:stretch!important;
+    justify-content:stretch!important;
+    overflow:hidden!important;
+    z-index:2147483000;
+  }
+  #abop-panel .abop-window{
+    flex:1 1 auto;width:100%;min-width:0;max-width:none;
+    height:100%;max-height:100%;min-height:0;
+    border:0;border-radius:0;box-shadow:none;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  #abop-panel .abop-top{
+    flex:0 0 auto;min-height:52px;
+    padding:calc(9px + env(safe-area-inset-top, 0px)) 12px 9px;
+    gap:8px;
+  }
+  #abop-panel .abop-top strong{font-size:15px;letter-spacing:0;line-height:1.25}
+  #abop-panel .abop-top .abop-version{font-size:10px;white-space:nowrap}
+  #abop-panel .abop-top button{min-width:42px;min-height:42px;font-size:18px}
+  #abop-panel .abop-shell{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+  #abop-panel .abop-nav{
+    flex:0 0 auto;width:100%;min-width:0;
+    flex-direction:row;align-items:stretch;gap:0;
+    padding:0;
+    border-right:0;border-bottom:1px solid var(--ab-line);
+    overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain;
+    scrollbar-width:thin;
+  }
+  #abop-panel .abop-nav button{
+    flex:1 0 66px;width:auto;min-width:66px;max-width:none;
+    min-height:55px;padding:6px 5px;gap:3px;
+    border-left:0;border-bottom:3px solid transparent;
+  }
+  #abop-panel .abop-nav button.selected{border-left:0;border-bottom-color:var(--ab-mint)}
+  #abop-panel .abop-nav button span{font-size:18px;line-height:1.1}
+  #abop-panel .abop-nav button small{font-size:11px;line-height:1.2;letter-spacing:0;white-space:nowrap}
+  #abop-panel .abop-main{
+    flex:1 1 auto;min-height:0;min-width:0;
+    overflow-y:auto;overflow-x:hidden;
+    padding:15px 12px 26px;
+  }
+  #abop-panel .abop-subhead{font-size:11px;line-height:1.4;gap:8px;flex-wrap:wrap}
+  #abop-panel .abop-people,#abop-panel .abop-fields{grid-template-columns:minmax(0,1fr)!important;gap:11px}
+  #abop-panel .abop-frame{margin-bottom:14px;padding:13px;min-width:0;max-width:100%}
+  #abop-panel .abop-fields label{min-width:0;font-size:13px}
+  #abop-panel select,#abop-panel input:not([type=checkbox]){min-height:44px;width:100%}
+  #abop-panel .abop-fieldlabel select,#abop-panel .abop-fieldlabel input{width:100%}
+  #abop-panel .abop-actions{gap:7px}
+  #abop-panel .abop-actions button{min-height:41px}
+  #abop-panel .abop-proposal-row{gap:9px;padding:10px;min-width:0}
+  #abop-panel .abop-proposal-content{min-width:0}
+  #abop-panel .abop-proposal-content small{overflow-wrap:anywhere}
+  #abop-panel .abop-applybar{gap:8px}
+  #abop-panel .abop-applybar button{white-space:normal}
+  #abop-panel .abop-attitude{flex-wrap:wrap}
+  #abop-panel .abop-attitude select{max-width:100%;min-width:0}
+  #abop-panel .abop-savebar small{flex:1 1 100%;min-width:0}
+  #abop-panel .abop-savebar button{width:100%;min-height:42px}
+  #abop-panel .abop-number{max-width:none;flex-wrap:wrap;align-items:flex-start}
+  #abop-panel .abop-number input{flex:1 0 110px;max-width:100%}
+  #abop-panel .abop-statusbar{padding:8px 12px calc(8px + env(safe-area-inset-bottom, 0px));font-size:11px;min-height:34px}
+  #abop-panel .abop-top .abop-brandmark{flex-basis:16px;width:16px;height:16px}
+}
+@media(max-width:380px){
+  #abop-panel .abop-top{padding-right:8px;padding-left:8px;gap:5px}
+  #abop-panel .abop-top strong{font-size:13px}
+  #abop-panel .abop-top .abop-version{font-size:9px}
+  #abop-panel .abop-top button{min-width:40px;min-height:40px}
+  #abop-panel .abop-main{padding:12px 9px 22px}
+  #abop-panel .abop-frame{padding:11px}
+}
+/* Do not conceal the last tab on 320px-wide phones. */
+@media(max-width:380px){
+  #abop-panel .abop-nav button{flex:1 1 0;min-width:0;padding:6px 1px}
+  #abop-panel .abop-nav button small{font-size:10px;letter-spacing:-.35px}
+}
+
+/* v0.3.33 - scene has its own tab; separate evidence from preferences. */
+#abop-panel .abop-minihead{font-size:12px;font-weight:750;color:var(--ab-lilac);margin:15px 0 6px}
+#abop-panel .abop-scene-details .abop-line{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+#abop-panel .abop-scene-key{min-width:64px;color:var(--ab-muted);font-size:12px;font-weight:750}
+@media(max-width:380px){#abop-panel .abop-nav button{flex:0 0 58px;min-width:58px}}
+
+/* v0.3.35: read-only bundled World Info drug-class reference */
+#abop-panel .abop-drug-reference{border:1px solid var(--ab-soft-line);background:var(--ab-card);padding:10px 12px;margin-top:9px}
+#abop-panel .abop-drug-reference>summary{font-size:13px;color:var(--ab-heading)}
+#abop-panel .abop-drug-reference .abop-drug-group{border-top:1px dashed var(--ab-soft-line);margin:13px 0 0;padding:8px 0 0}
+#abop-panel .abop-drug-reference .abop-drug-group h4{margin:0 0 7px;color:var(--ab-mint);font-size:13px}
+#abop-panel .abop-drug-reference .abop-drug-group h4 small{font-size:10px;color:var(--ab-muted);font-weight:400}
+#abop-panel .abop-drug-reference .abop-drug-line{padding:6px 0;border-bottom:1px dotted var(--ab-soft-line)}
+#abop-panel .abop-drug-reference .abop-drug-line b{font-size:13px;color:var(--ab-text)}
+#abop-panel .abop-drug-reference .abop-drug-line p{font-size:12px;margin:3px 0 0;color:var(--ab-muted)}
+
+/* v0.3.40: CHAR-first scene tab. No empty USER second column. */
+#abop-panel .abop-scenes-char-first{display:block;width:100%;min-width:0}
+#abop-panel .abop-scenes-char-first .abop-scene-primary{width:100%;max-width:none}
+#abop-panel .abop-scenes-char-first .abop-scene-user{width:100%;max-width:none}
+#abop-panel .abop-scenes-char-first .abop-scene-user>summary{font-size:13px;font-weight:700;color:var(--ab-lilac);padding:3px 0}
+#abop-panel .abop-scenes-char-first .abop-scene-user[open]>summary{margin-bottom:14px;border-bottom:1px solid var(--ab-soft-line);padding-bottom:10px}
