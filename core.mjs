@@ -1,6 +1,7 @@
 /* ABO Pixel Tracker · standalone pure state engine. No third-party extension code. */
 import {anatomyDefault} from './profile.mjs';
 import {initialVitalBaseline,recalculateVitals,validVitalNumber,CONDITION_OBSERVATIONS,PHEROMONE_OBSERVATIONS} from './vitals.mjs';
+import {openingMenstruationEvidence} from './menstruation-evidence.mjs';
 export const VERSION = 2;
 export const PHASE_RATES = Object.freeze({ quiet: .10, prodrome: .40, active: .75, recovery: .35 });
 export const INSTINCTS = Object.freeze({
@@ -63,7 +64,7 @@ export function inferExplicit(text){
 export function person(id,name,seed,canon={}){
  const sex=normalizeSex(canon.sex);
  const secondary=normalizeABO(canon.secondary)||'unknown';
- const abo=secondary==='unknown'?['alpha','beta','omega'][pickInt(seed,`abo:${id}`,0,2)]:secondary;
+ const abo=secondary; // Unspecified means unspecified; never silently roll a fictional ABO type.
  const omegaMale=sex==='male'&&abo==='omega';
  const vitalBaseline=initialVitalBaseline(canon,abo,name);
  const interval=abo==='omega'?pickInt(seed,`${id}:interval`,20,35):pickInt(seed,`${id}:interval`,30,90);
@@ -71,11 +72,13 @@ export function person(id,name,seed,canon={}){
  const active=abo==='omega'?pickInt(seed,`${id}:active`,3,7)*24:pickInt(seed,`${id}:active`,1,3)*24;
  const recovery=abo==='omega'?pickInt(seed,`${id}:recovery`,12,72):pickInt(seed,`${id}:recovery`,12,48);
  return {
-  id,identityId:String(canon.id||''),name:String(name||id),sex,secondary:abo,source:{sex:sex!=='unknown'?'card':'unknown',secondary:secondary!=='unknown'?'card':'initial_roll'},
+  id,identityId:String(canon.id||''),name:String(name||id),sex,secondary:abo,source:{sex:sex!=='unknown'?'card':'unknown',secondary:secondary!=='unknown'?'card':'unset'},
   locks:{},anatomy:canon.anatomy||anatomyDefault(sex,abo),anatomyDetail:canon.anatomyDetail||'',inseminationOrgan:canon.inseminationOrgan||'',
   presentation:{pheromoneScent:canon.pheromoneScent||'',contactStyle:canon.contactStyle||'',vocalStyle:canon.vocalStyle||'',speechStyle:canon.speechStyle||''},
-  cycle:{enabled:abo!=='beta',mode:abo==='beta'?'absent':'enabled',intervalHours:interval*24,prodromeHours:prodrome,activeHours:active,recoveryHours:recovery,anchorHour:interval*24, phase:'quiet',ovulationHour:null},
-  menstruation:{enabled:omegaMale||sex==='female',days:pickInt(seed,`${id}:menses`,3,7)},
+  cycle:{enabled:['alpha','omega'].includes(abo),mode:abo==='unknown'?'unset':abo==='beta'?'absent':'enabled',intervalHours:interval*24,prodromeHours:prodrome,activeHours:active,recoveryHours:recovery,anchorHour:interval*24, phase:'quiet',ovulationHour:null},
+  menstruation:{enabled:omegaMale||sex==='female',days:pickInt(seed,`${id}:menses`,3,7),
+    // Explicit opening-period evidence, unlike menstruation eligibility, sets a current period.
+    ...(openingMenstruationEvidence(canon.openingMenstruationText||canon.card)?{anchorHour:0,source:'opening'}:{})},
   fertile:{gestate:(abo==='omega'||sex==='female'&&['alpha','beta'].includes(abo)),impregnate:abo==='alpha'||(sex==='male'&&abo==='beta')},
   vitalBaseline:{condition:vitalBaseline.condition,emission:vitalBaseline.emission,source:vitalBaseline.source,reasons:vitalBaseline.reasons},
   vitalObservation:null,
@@ -146,6 +149,21 @@ export function cycleForecast(p, time, seed=''){
  if(!m.enabled){result.menstruationStatus='absent';return result;}
  if(paused){result.menstruationStatus='paused';return result;}
  const days=Math.max(1,Number(m.days)||1)*24;
+ // A real described start (opening/manual) takes priority over inferred ovulation.
+ // The end event can stop an ongoing period even without a story-time advance.
+ if(Number.isFinite(m.anchorHour)){
+  const interval=Number(m.intervalHours)>0?Number(m.intervalHours):Number(c.intervalHours)>0?Number(c.intervalHours):28*24;
+  const elapsed=time-m.anchorHour;
+  if(elapsed<0){result.menstruationStatus='waiting';result.nextMenstruationHours=-elapsed;return result;}
+  const index=Math.floor(elapsed/interval);
+  const start=m.anchorHour+index*interval;
+  const manuallyEnded=Number.isFinite(m.endedHour)&&m.endedHour>=start&&m.endedHour<=time;
+  if(time<start+days&&!manuallyEnded){
+   result.menstruationStatus='active';result.menstruationEndHours=start+days-time;
+  }else result.menstruationStatus='waiting';
+  result.nextMenstruationHours=start+interval-time;
+  return result;
+ }
  let first=null,interval=null;
  if(p.secondary==='beta'&&p.sex==='female'){
   interval=Number(m.intervalHours)>0?Number(m.intervalHours):28*24;
@@ -238,12 +256,8 @@ export function phaseForPerson(p,time){
  return phaseAt(p.cycle,time);
 }
 export function menstruationPhase(p,time,seed){
- if(!p.menstruation.enabled||['conception_pending','pregnant_unaware','pregnant_suspected','pregnant_confirmed','due','postpartum'].includes(p.pregnancy.status))return 'none';
- const firstOv=ovulationHour(p,time);if(!Number.isFinite(firstOv))return 'unknown';
- const interval=p.secondary==='beta'?28*24:p.cycle.intervalHours;
- const ov=firstOv>time?firstOv-interval:firstOv;
- const luteal=pickInt(seed,`${p.id}:luteal`,11,16)*24;
- return time>=ov+luteal&&time<ov+luteal+p.menstruation.days*24?'menstruating':'not_menstruating';
+ const status=cycleForecast(p,time,seed).menstruationStatus;
+ return status==='active'?'menstruating':status==='waiting'?'not_menstruating':status==='unknown'?'unknown':'none';
 }
 export function sideEffectChance(drug,conf={}){return CLAMP((DRUGS[drug]?.adverse||0)*(conf.sideEffectScale??1),0,1);}
 export function adverseSymptoms(seed,event){
@@ -367,6 +381,20 @@ export function applyEvent(state,input){
  case 'time_advance':{
   const hours=Number(e.hours);
   if(Number.isFinite(hours)&&hours>=0&&hours<=8760){state.clockHours+=hours;for(const w of Object.values(state.windows))updateWindow(state,w.gestator,w.ovulation);}
+  break;
+ }
+ case 'menstruation_start':{
+  if(p?.menstruation?.enabled){
+   p.menstruation.anchorHour=state.clockHours;
+   p.menstruation.endedHour=null;
+   p.menstruation.source='manual';
+  }
+  break;
+ }
+ case 'menstruation_end':{
+  if(p?.menstruation?.enabled&&cycleForecast(p,state.clockHours,state.seed).menstruationStatus==='active'){
+   p.menstruation.endedHour=state.clockHours;
+  }
   break;
  }
  case 'heat_start':case 'rut_start':{
@@ -519,7 +547,7 @@ export function replay(seed,canon,config,rows,overrides={}){
   if(!Object.hasOwn(changes,'gestate'))p.fertile.gestate=p.secondary==='omega'||p.sex==='female'&&['alpha','beta'].includes(p.secondary);
   if(!Object.hasOwn(changes,'impregnate'))p.fertile.impregnate=p.secondary==='alpha'||p.sex==='male'&&p.secondary==='beta';
   if(!Object.hasOwn(changes,'menstruationEnabled'))p.menstruation.enabled=p.secondary==='omega'||p.sex==='female';
-  if(!Object.hasOwn(changes,'cycleEnabled')&&!Object.hasOwn(changes,'cycleMode')){p.cycle.enabled=p.secondary!=='beta';p.cycle.mode=p.cycle.enabled?'enabled':'absent';}
+  if(!Object.hasOwn(changes,'cycleEnabled')&&!Object.hasOwn(changes,'cycleMode')){p.cycle.enabled=['alpha','omega'].includes(p.secondary);p.cycle.mode=p.secondary==='unknown'?'unset':p.cycle.enabled?'enabled':'absent';}
   if(!Object.hasOwn(changes,'anatomy'))p.anatomy=anatomyDefault(p.sex,p.secondary);
  }
  for(const row of rows){for(const evt of row.events||[])applyEvent(s,evt);}

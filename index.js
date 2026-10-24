@@ -5,7 +5,7 @@ import {ANALYZER_SYSTEM,parseModelOutput,buildAnalyzerUserPrompt} from './analyz
 import {PROFILE_SYSTEM,PROFILE_FIELDS,SetupJsonFormatError,normalizeSetupProposal,completeInitialIdentityProposal,alignInitialPhysiologyProposal,missingInitialSecondaryRoles,mergeSelectedPreferences,anatomyChoices,anatomyDefault} from './profile.mjs';
 import {user_avatar} from '/scripts/personas.js';
 import {ConnectionManagerRequestService} from '/scripts/extensions/shared.js';
-import {requestUsingProfile,extractedText,readableProfileError,profileErrorHint} from './connection.mjs';
+import {requestUsingProfile,extractedText,readableProfileError,profileErrorHint,redactErrorSecrets} from './connection.mjs';
 import {OPTION_CANDIDATES} from './profile.mjs';
 import {preferenceLabel,preferenceDisplayLabel,preferenceIdFromEdit,preferenceLevelLabel,attitudeLabel,cyclePhaseLabel,pregnancyLabel,sceneDisplayLabel,sceneRecordSummary,cycleModeLabel,drugLabel,adverseLabel,rateLabel,eventKindLabel,personRoleLabel} from './preference-labels.mjs';
 import {readCurrentPersona,personaIdentity,syncPersonaProfile,filterRowsByPersona} from './persona-sync.mjs';
@@ -20,6 +20,8 @@ import {BUNDLED_WORLDINFO_DRUG_CATALOG} from './worldinfo-drug-catalog.mjs';
 import {PREFERENCE_LOCALIZATION_SYSTEM,localizationItems,localizationPrompt,parseLocalizationOutput} from './preference-localization.mjs';
 import {POSTPROCESS_SCOPES,DEFAULT_POSTPROCESS,normalizedPostprocessSettings,displayCacheText,collectDisplayCandidates,choosePostprocessCandidates,postprocessKey,ruleDisplayText,batchPostprocess,postprocessPrompt,parsePostprocessReply,DISPLAY_POSTPROCESS_SYSTEM} from './display-postprocess.mjs';
 import {sceneHasDetails,hasUsableScene,hasSceneHistory} from './scene-visibility.mjs';
+import {openingMenstruationEvidence} from './menstruation-evidence.mjs';
+import {RESETTABLE_FIELDS,resetProfileChoices} from './profile-reset.mjs';
 const STORAGE='abo_pixel_tracker_independent_v1';
 const PROMPT='ABO_PIXEL_TRACKER_CONTINUITY_V1';
 const S=()=>SillyTavern.getContext();
@@ -32,7 +34,7 @@ let npcCandidates=[], npcScanChatId='', npcSearch='', npcReviewEntries=[], npcSc
 const html=x=>String(x??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const el=(id)=>document.getElementById(id);
 const fmt=(n)=>Number.isFinite(n)?Math.round(n*10)/10:0;
-function log(...v){console.log('[ABO Pixel]',...v);}
+function log(...v){console.log('[그날의 사정]',...v);}
 function displayAlertKo(message,hideTruth=false){
  const raw=String(message??'');
  const confirmed=raw.match(/^(.+): internally confirmed conception \(character awareness remains separate\)$/);
@@ -75,7 +77,7 @@ function saveSharedAnalysisSetting(key,value){
 function connectionValue(config){return String(config?.analysisConnection||'');} // empty = current connection
 function supportedProfiles(){
  try{return ConnectionManagerRequestService.getSupportedProfiles()||[];}
- catch(e){console.debug('[ABO Pixel] profile listing unavailable',readableProfileError(e));return [];}
+ catch(e){console.debug('[그날의 사정] profile listing unavailable',readableProfileError(e));return [];}
 }
 function connectionOptions(config){
  const current=connectionValue(config), profiles=supportedProfiles();
@@ -195,7 +197,7 @@ async function runDisplayPostprocess({automatic=false}={}){
     if(automatic)for(const entry of chunk)if(!Object.hasOwn(translated,postprocessKey(entry)))autoPostprocessFailures.add(`${origin.chatId}:${entry.scope}:${entry.role}:${entry.field}:${entry.source}`);
    }catch(err){
     if(!postprocessMatches(m,origin))throw err;
-    console.warn('[ABO Pixel] Korean postprocessing skipped batch',err);
+    console.warn('[그날의 사정] Korean postprocessing skipped batch',err);
     failed+=chunk.length;
     if(automatic)for(const entry of chunk)autoPostprocessFailures.add(`${origin.chatId}:${entry.scope}:${entry.role}:${entry.field}:${entry.source}`);
    }
@@ -203,7 +205,7 @@ async function runDisplayPostprocess({automatic=false}={}){
    if(!automatic)setStatus(`한국어 후처리 ${processed}/${list.length}개 · 적용 ${changed} · 미처리 ${failed}`);
   }
   if(!automatic)setStatus(`${postprocessCancel?'후처리 중단':'후처리 완료'} · 한국어 ${changed}개 · 미처리 ${failed}개 (원본 보존)`);
-  else if(failed){console.warn('[ABO Pixel] postprocessing skipped',failed,'items');setStatus(`분석 완료 · 한국어 표시 ${failed}개 미처리 (원본 유지)`);}
+  else if(failed){console.warn('[그날의 사정] postprocessing skipped',failed,'items');setStatus(`분석 완료 · 한국어 표시 ${failed}개 미처리 (원본 유지)`);}
  }catch(err){if(!automatic)setStatus(`한국어 후처리 중단: ${err.message}`);}
  finally{postprocessBusy=false;postprocessCancel=false;if(postprocessMatches(m,origin))refresh();if(postprocessPending){postprocessPending=false;void runDisplayPostprocess({automatic:true});}}
 }
@@ -259,8 +261,8 @@ async function scanNpcSources(){
   const result=discoverNpcProfilesDetailed(sources);
   npcCandidates=result.profiles;npcReviewEntries=result.reviewEntries;npcScanStats=result.stats;npcScanChatId=chatId;npcSearch='';npcPreviewId='';npcAiBatchOffset=0;
   setStatus(!sources.length?'연결된 캐릭터북 또는 읽을 수 있는 월드 인포가 없습니다':`1차 NPC 후보 ${npcCandidates.length}명 · AI 보조 탐색 대상 ${npcReviewEntries.length}개 항목${failed.length?` · 읽지 못한 월드 인포 ${failed.length}개`:''}`);
-  if(failed.length)console.warn('[ABO Pixel] NPC book read warnings:',failed);
- }catch(e){console.error('[ABO Pixel] NPC discovery failed',e);setStatus(`NPC 검색 실패: ${e.message}`);}finally{working=false;render();}
+  if(failed.length)console.warn('[그날의 사정] NPC book read warnings:',failed);
+ }catch(e){console.error('[그날의 사정] NPC discovery failed',e);setStatus(`NPC 검색 실패: ${e.message}`);}finally{working=false;render();}
 }
 /** Stage 2 never runs automatically: using the current analysis model may incur fees. */
 async function scanNpcWithAI(){
@@ -324,7 +326,7 @@ function renderNpcTarget(){
  <button type="button" data-action="addNpc">NPC 추가하고 추적</button></details></div>`:''}
  <p class="abop-muted">현재 채팅의 메타데이터에 NPC별 설정·분석 기록을 저장합니다. 월드 인포 원본은 수정하지 않습니다. 한 번에 선택한 NPC 1명만 추적하며, 여러 상대의 임신·관계 사건을 합산하는 기능은 아직 지원하지 않습니다.</p></section>`;
 }
-async function persist(){try{if(typeof S().saveMetadata!=='function')throw new Error('SillyTavern 메타데이터 저장 기능이 없습니다');await S().saveMetadata();return true;}catch(e){console.warn('[ABO Pixel] Metadata saving failed',e);setStatus('저장 실패: 개발자 콘솔 확인');return false;}}
+async function persist(){try{if(typeof S().saveMetadata!=='function')throw new Error('SillyTavern 메타데이터 저장 기능이 없습니다');await S().saveMetadata();return true;}catch(e){console.warn('[그날의 사정] Metadata saving failed',e);setStatus('저장 실패: 개발자 콘솔 확인');return false;}}
 function readCanon(){
  const c=S(), character=c.characters?.[c.characterId]||c.characters?.[c.this_chid]||{};
  const cd=character.data||{};
@@ -356,13 +358,19 @@ function syncCanon(){
  }
  return result.changed;
 }
-function setStatus(s){status=s;const node=el('abop-statusline');if(node)node.textContent=s;}
+function setStatus(s){status=redactErrorSecrets(s);const node=el('abop-statusline');if(node)node.textContent=status;}
 function branchState(){
  const m=meta(false);if(!m)return null;
  const chat=S().chat||[];
  const t=selectedNpc(m);
  const rows=t?combineNpcRecords(chat,m.ledger||{},currentCharLedger(m),m.userPersonaIdentity):filterRowsByPersona(sortedRecords(chat,m.ledger||{}),m.userPersonaIdentity);
- return replay(m.seed,effectiveCanon(m),m.config||DEFAULT_CONFIG,rows,effectiveOverrides(m));
+ const canon=effectiveCanon(m);
+ // Only the opening message is eligible; later roleplay does not silently reset a period.
+ const opening=chat.find(message=>message&&!message.is_user&&!message.is_system&&String(message.mes||'').trim());
+ if(opening&&openingMenstruationEvidence(opening.mes)&&!openingMenstruationEvidence(canon.char?.card)){
+  canon.char={...canon.char,openingMenstruationText:String(opening.mes).slice(0,6000)};
+ }
+ return replay(m.seed,canon,m.config||DEFAULT_CONFIG,rows,effectiveOverrides(m));
 }
 function updatePrompt(){
  try{
@@ -370,7 +378,7 @@ function updatePrompt(){
   const m=meta(false);
   const body=state&&m?.config?.enabled&&m?.config?.injectState&&currentNpcReady(m)?formatPrompt(state,false):'';
   c.setExtensionPrompt(PROMPT,body,0,0,false,0);
- }catch(e){console.warn('[ABO Pixel] prompt injection unavailable',e);}
+ }catch(e){console.warn('[그날의 사정] prompt injection unavailable',e);}
 }
 function refresh(){meta();syncCanon();state=branchState();updatePrompt();render();}
 function eventIDFor(messageKey,i){return `${messageKey}/e${i}`;}
@@ -430,7 +438,7 @@ async function analyzeLatest({force=false}={}){
    }
   }
   if(!await persist())throw new Error('분석 결과 저장 실패');setStatus(`분석 완료 · 확인된 사건 ${events.length}건`);refresh();analyzeSucceeded=true;
- }catch(e){console.error('[ABO Pixel] generation error',e);setStatus(`분석 실패: ${e.message||'모델/API 연결 확인'}`);}finally{working=false;render();if(analyzeSucceeded)void runDisplayPostprocess({automatic:true});}
+ }catch(e){console.error('[그날의 사정] generation error',e);setStatus(`분석 실패: ${e.message||'모델/API 연결 확인'}`);}finally{working=false;render();if(analyzeSucceeded)void runDisplayPostprocess({automatic:true});}
 }
 /** An opt-in, never-auto-applied, chronological historical scan.
  * All model responses remain in memory until an explicit preview confirmation. */
@@ -484,7 +492,7 @@ async function previewHistoryState(){
     results[src.key]={events,capped:decoded.events.length>=12};
    }catch(err){
     results[src.key]={error:String(err?.message||err).slice(0,200)};
-    console.warn('[ABO Tracker] Historical message analysis failed',src.index+1,err);
+    console.warn('[그날의 사정] Historical message analysis failed',src.index+1,err);
    }
    setStatus(`과거 기록 재분석 중 · ${i+1}/${sources.length}개 · 취소 가능`);
    if(i%3===2||i===sources.length-1)render();
@@ -536,7 +544,7 @@ async function initialProfileAnalyze(){
   }
   m.initialProposal=draft;await persist();
   setStatus('제안 생성 완료 · 선택 후 적용해야 반영됩니다');refresh();
- }catch(e){console.error('[ABO Pixel] initial proposal failed',e);setStatus(`초기 프로필 제안 실패: ${readableProfileError(e)}`);}
+ }catch(e){console.error('[그날의 사정] initial proposal failed',e);setStatus(`초기 프로필 제안 실패: ${readableProfileError(e)}`);}
  finally{working=false;render();}
 }
 const PROPOSAL_SELECT={
@@ -549,9 +557,14 @@ function renderSetup(){
  const m=meta(false);if(!m)return '';
  const draft=m.initialProposal;
  const hint='<p class="abop-muted">카드·페르소나의 확정 정보와 성격 기반 제안을 구분합니다. 체크한 항목만 실제 프로필에 적용됩니다. 수동으로 이미 고정한 항목은 보호됩니다.</p>';
- if(!draft||draft.chatId!==S().chatId||draft.personaIdentity!==m.userPersonaIdentity||draft.targetId!==selectedNpcId(m))return `<section class="abop-frame"><header>◇ 초기 프로필 설정</header><h3 class="abop-title">초기 프로필 통합 분석</h3>${hint}<p>신체 구조·생식 능력·페로몬·접촉·발성·언어와 친밀 취향을 한 번에 분석해 제안합니다. 카드와 수동 설정에 없는 제2성별은 성격·취향을 분석해 제안하고, 성기 형태는 해당 유형의 후보군에서 배정합니다. 기존 상태는 선택해 적용하기 전에는 변경되지 않습니다.</p><button data-action="init">CHAR + USER 분석 제안 만들기</button></section>`;
+ const owns=effectiveOverrides(m),roleReset=['char','user'].map(r=>{
+  const list=Object.keys(owns?.[r]||{}).filter(k=>RESETTABLE_FIELDS.includes(k));
+  return `<div class="abop-reset-row"><b>${r.toUpperCase()} · 수동 고정 ${list.length}개</b><div class="abop-actions"><select id="abop-clear-field-${r}" aria-label="${r} 고정 해제할 항목"><option value="">고정 항목 선택</option>${list.map(k=>`<option value="${html(k)}">${html(({sex:'성별',secondary:'알파·베타·오메가',anatomy:'신체 유형',menstruationEnabled:'월경 여부',cycleEnabled:'히트·러트',cycleMode:'히트·러트 모드',baseCondition:'기초 컨디션',basePheromone:'기초 페로몬'})[k]||k)}</option>`).join('')}</select><button data-action="clearFixedField" data-role="${r}" ${list.length?'':'disabled'}>선택 고정 해제</button><button data-action="resetInitialProfile" data-role="${r}">프로필 초기화</button></div></div>`;
+ }).join('');
+ const resetBlock=`<section class="abop-frame"><header>◇ 프로필 초기화 · 현재 채팅</header><p class="abop-muted">항목 고정 해제 또는 초기 셋업만 다시 시작합니다. RP 채팅·분석 사건·주기 사건 기록은 삭제하지 않습니다. 전체 초기화는 CHAR 및 현재 USER 페르소나의 설정을 대상으로 합니다.</p>${roleReset}<div class="abop-actions"><button data-action="resetInitialProfile" data-role="both">CHAR + USER 프로필 함께 초기화</button></div></section>`;
+ if(!draft||draft.chatId!==S().chatId||draft.personaIdentity!==m.userPersonaIdentity||draft.targetId!==selectedNpcId(m))return `<section class="abop-frame"><header>◇ 초기 프로필 설정</header><h3 class="abop-title">초기 프로필 통합 분석</h3>${hint}<p>신체 구조·생식 능력·페로몬·접촉·발성·언어와 친밀 취향을 한 번에 분석해 제안합니다. 카드와 수동 설정에 없는 제2성별은 성격·취향을 분석해 제안하고, 성기 형태는 해당 유형의 후보군에서 배정합니다. 기존 상태는 선택해 적용하기 전에는 변경되지 않습니다.</p><button data-action="init">CHAR + USER 분석 제안 만들기</button></section>${resetBlock}`;
  const missingABO=missingInitialSecondaryRoles(draft,{canon:effectiveCanon(m),overrides:effectiveOverrides(m)});
- if(missingABO.length)return `<section class="abop-frame"><header>◇ 초기 프로필 제안 <small>갱신 필요</small></header>${hint}<p>저장된 이전 분석 초안에 ${missingABO.map(x=>x.toUpperCase()).join(' · ')} 제2성별이 누락되어 있어 적용을 차단했습니다. 다시 분석하면 성격·취향 기반 ABO 제안과 해당 유형의 생식·주기 기본값이 함께 표시됩니다.</p><button data-action="init" class="abop-primary">CHAR + USER 다시 분석</button></section>`;
+ if(missingABO.length)return `<section class="abop-frame"><header>◇ 초기 프로필 제안 <small>갱신 필요</small></header>${hint}<p>저장된 이전 분석 초안에 ${missingABO.map(x=>x.toUpperCase()).join(' · ')} 제2성별이 누락되어 있어 적용을 차단했습니다. 다시 분석하면 성격·취향 기반 ABO 제안과 해당 유형의 생식·주기 기본값이 함께 표시됩니다.</p><button data-action="init" class="abop-primary">CHAR + USER 다시 분석</button></section>${resetBlock}`;
  let out=`<section class="abop-frame"><header>◇ 초기 프로필 제안 <small>미적용 초안</small></header>${hint}
  <div class="abop-actions"><button data-action="init">다시 분석</button><button data-action="discardProposal">제안 버리기</button></div></section>`;
  for(const role of ['char','user']){
@@ -585,7 +598,7 @@ function renderSetup(){
   out+=`<div class="abop-rowhead abop-attitude"><label class="abop-check"><input type="checkbox" data-pref-attitude-check="${role}" ${d.useAttitude?'checked':''}/> 성향 적용</label>
    <select data-pref-attitude="${role}">${choiceHTML([['open','열려 있음'],['reserved','소극적임'],['curious','호기심만 있음']],d.attitude)}</select></div></section>`;
  }
- return out+`<section class="abop-frame abop-applybar"><p class="abop-muted">적용 전까지 월드 인포, 임신 계산 및 RP에 영향을 주지 않습니다.</p><button data-action="applyProposal" class="abop-primary">✓ 선택한 제안 적용</button></section>`;
+ return out+`<section class="abop-frame abop-applybar"><p class="abop-muted">적용 전까지 월드 인포, 임신 계산 및 RP에 영향을 주지 않습니다.</p><button data-action="applyProposal" class="abop-primary">✓ 선택한 제안 적용</button></section>${resetBlock}`;
 }
 async function applyProfileProposal(){
  const m=meta(),draft=m?.initialProposal;
@@ -643,7 +656,7 @@ function cycleOverview(p,clock,seed,hideTruth=false){
   lines+=row(`${category} 종료 · 회복 시작`,f.nextRecoveryHours);
   lines+=row('회복 완료 · 안정기 시작',f.nextQuietHours);
  }else if(m!=='enabled')lines+=`<p class="abop-muted">${label} — ${category}의 남은 시간을 계산하지 않습니다.</p>`;
- if(f.menstruationStatus==='active')lines+=`<p>월경 중</p>${row('현재 월경 종료',f.menstruationEndHours)}${row('다음 월경',f.nextMenstruationHours)}`;
+ if(f.menstruationStatus==='active')lines+=`<p class="abop-menstruating"><b>● 월경 중</b>${p.menstruation.source==='opening'?' · 도입부 설정 반영':p.menstruation.source==='manual'?' · 직접 기록':''}</p>${row('현재 월경 종료',f.menstruationEndHours)}${row('다음 월경',f.nextMenstruationHours)}`;
  else if(f.menstruationStatus==='waiting')lines+=row('다음 월경',f.nextMenstruationHours);
  else if(f.menstruationStatus==='paused')lines+=hideTruth?'<p>월경: 일시 중단 (사유 숨김)</p>':'<p>월경: 임신·출산 관련 중단 (재개일 미확정)</p>';
  else if(f.menstruationStatus==='unknown')lines+='<p>다음 월경: 기준 시점 미확정</p>';
@@ -746,7 +759,7 @@ function selectedSection(){
   <div class="abop-actions"><input id="abop-hours" type="number" min="0" step="1" placeholder="진행 시간(h)" aria-label="진행 시간"/><button data-action="advance">시간 적용</button><button data-action="rebuild">다시 계산</button></div>
   ${state.alerts.slice(-3).map(x=>displayAlertKo(x,m.config.hideTruth===true)).filter(Boolean).map(x=>`<p class="abop-note">${html(x)}</p>`).join('')}
   <details><summary>최근 사건</summary>${state.events.slice(-14).reverse().map(e=>`<div class="abop-line">${Math.floor(e.at/24)}일 차 · ${html(eventHiddenByPrivacy(e.kind,m.config)?'비공개 상태 사건':eventSummaryKo(e))}</div>`).join('')||'기록 없음'}</details></section>`;
- if(tab==='cycles')return `<div class="abop-people">${people.map(([id,p])=>`<section class="abop-frame"><header>${id.toUpperCase()} · ${p.cycle.enabled?'주기 현황':p.menstruation.enabled?'월경 현황 · 약물':`${cycleModeLabel(cycleMode(p))} · 약물`}</header><p class="abop-title">${html(p.name)}</p>${cycleOverview(p,state.clockHours,state.seed,m.config.hideTruth===true)}
+ if(tab==='cycles')return `<div class="abop-people">${people.map(([id,p])=>`<section class="abop-frame"><header>${id.toUpperCase()} · ${p.cycle.enabled?'주기 현황':p.menstruation.enabled?'월경 현황 · 약물':`${cycleModeLabel(cycleMode(p))} · 약물`}</header><p class="abop-title">${html(p.name)}</p>${cycleOverview(p,state.clockHours,state.seed,m.config.hideTruth===true)}<div class="abop-actions"><button data-action="recordMenstruationStart" data-role="${id}" ${!p.menstruation.enabled?'disabled':''}>월경 시작 기록</button><button data-action="recordMenstruationEnd" data-role="${id}" ${cycleForecast(p,state.clockHours,state.seed).menstruationStatus!=='active'?'disabled':''}>월경 종료 기록</button></div><p class="abop-muted">실제로 이야기에서 확인된 시점에만 기록하세요. 도입부의 명시적 월경은 시작 상태로 자동 반영됩니다.</p>
  <details><summary>약물 · 부작용 · 내성</summary><p class="abop-muted">복용 ${p.medication.length}건 · 부작용 기록 ${p.adverse.length}건</p>
  ${(p.adverse||[]).slice(-4).map(x=>`<div class="abop-line">${html(drugLabel(x.drug))} · ${html((x.symptoms||[x.type||'기타']).map(adverseLabel).join(', '))}${Number.isFinite(x.until)&&x.until<state.clockHours?' (경과)':''}</div>`).join('')||'<p class="abop-muted">부작용 기록 없음</p>'}
  <p class="abop-muted">내성: ${html(Object.entries(p.tolerance||{}).map(([k,v])=>`${drugLabel(k)} ${v}`).join(' · ')||'기록 없음')}</p>
@@ -765,7 +778,7 @@ function selectedSection(){
   <div class="abop-title">분석 모델 연결</div>
   <label class="abop-fieldlabel">분석에 사용할 API / 저장 연결 프로필
   <select id="abop-connection" data-connection>${connectionOptions(shared)}</select></label>
-  <p class="abop-muted">선택하지 않으면 현재 SillyTavern 연결을 사용합니다. 연결 테스트에서 인증 오류가 나면 연결 관리자에서 그 프로필을 활성화한 상태로 업데이트하세요.</p>
+  <p class="abop-muted">선택하지 않으면 현재 SillyTavern 연결을 사용합니다. 연결 오류가 나면 SillyTavern에서 해당 공급자와 API 인증 정보를 먼저 확인하고 저장된 연결 프로필을 갱신하세요.</p>
   ${connectionValue(shared)==='custom'?`<div class="abop-api-fields">
     <label class="abop-fieldlabel">OpenAI 호환 API 주소<input type="url" data-custom="customApiUrl" value="${html(shared.customApiUrl||'')}" placeholder="https://api.example.com/v1" /></label>
     <label class="abop-fieldlabel">모델 이름<input type="text" data-custom="customModel" value="${html(shared.customModel||'')}" placeholder="model-id" /></label>
@@ -800,17 +813,19 @@ function selectedSection(){
 function personCard(id,p,m){
  const own=effectiveOverrides(m)?.[id]||{};
  const options=(val,items)=>items.map(([k,v])=>`<option value="${k}" ${val===k?'selected':''}>${v}</option>`).join('');
+ const canonicalABO=effectiveCanon(m)?.[id]?.secondary;
+ const displayedABO=own.secondary||(['alpha','beta','omega'].includes(canonicalABO)?canonicalABO:'unknown');
  return `<section class="abop-frame abop-person"><header><span class="abop-icon">${id==='char'?'◇':'◆'}</span> ${id.toUpperCase()} <small>${id==='char'?'캐릭터':'페르소나'}</small></header>
  <div class="abop-title">${html(p.name)}</div>
  <div class="abop-fields"><label>성별<select data-person="${id}" data-field="sex">${options(p.sex,[['unknown','미설정'],['male','남성'],['female','여성'],['nonbinary','기타']])}</select></label>
- <label>ABO<select data-person="${id}" data-field="secondary">${options(p.secondary,[['alpha','알파'],['beta','베타'],['omega','오메가']])}</select></label>
+ <label>알파·베타·오메가<select data-person="${id}" data-field="secondary">${options(displayedABO,[['unknown','미설정 · AI 제안 받기'],['alpha','알파'],['beta','베타'],['omega','오메가']])}</select></label>
  <label>신체 유형<select data-person="${id}" data-field="anatomy">${options(p.anatomy||anatomyDefault(p.sex,p.secondary),anatomyChoices(p.sex,p.secondary))}</select></label>
  <label>러트/히트 상태<select data-person="${id}" data-field="cycleMode">${options(cycleMode(p),[['enabled','사용 · 현재 주기 계산'],['disabled','사용 안 함 · 추적 중지'],['absent','생리적으로 없음'],['unset','미설정 · 판단 보류']])}</select></label></div>
  <div class="abop-savebar"><small>항목 변경 시 자동 저장됩니다. 자동 배정된 ABO도 확정할 수 있습니다.</small><button type="button" data-action="saveABO" data-role="${id}">ABO 선택 저장</button></div>
  <details class="abop-advanced"><summary>기초 상태값 · 직접 수정</summary><p class="abop-muted">현재 수치는 기초값에 주기·복용·부작용·명시된 서사 상태를 반영한 가상 지표입니다. 이전 버전의 일괄 70/50은 자동으로 고정하지 않습니다.</p><div class="abop-fields"><label>기초 컨디션 (0~100)<input type="number" min="0" max="100" step="1" data-person="${id}" data-field="baseCondition" value="${fmt(p.vitalBaseline.condition)}" /></label><label>기초 페로몬 (0~100)<input type="number" min="0" max="100" step="1" data-person="${id}" data-field="basePheromone" value="${fmt(p.vitalBaseline.emission)}" /></label></div><p class="abop-muted">기초 산정: ${html(localizedText('status',id,'baseline',p.vitalBaseline.source||'',p.vitalBaseline.source||'개별 기초 추정'))}</p></details>
  <div class="abop-meterlabel">현재 컨디션 <b>${fmt(p.body.condition)}</b></div><div class="abop-meter"><i style="width:${clamp(p.body.condition,0,100)}%"></i></div>
  <div class="abop-meterlabel">현재 페로몬 발산 <b>${fmt(p.pheromone.emission)}</b></div><div class="abop-meter mint"><i style="width:${clamp(p.pheromone.emission,0,100)}%"></i></div>
- <div class="abop-tagrow"><span>${p.cycle.enabled?html(cyclePhaseLabel(p.cycle.phase)):html(cycleModeLabel(cycleMode(p)))}</span><span>${html(({alpha:'알파',beta:'베타',omega:'오메가'})[p.secondary]||'미설정')}</span><span>${p.bondWith?'결합 ♥':'미결합'}</span></div>
+ <div class="abop-tagrow"><span>${p.cycle.enabled?html(cyclePhaseLabel(p.cycle.phase)):html(cycleModeLabel(cycleMode(p)))}</span>${p.menstruation.phase==='menstruating'?'<span class="abop-menses-tag">● 월경 중</span>':''}<span>${html(({alpha:'알파',beta:'베타',omega:'오메가'})[displayedABO]||'미설정 · AI 제안 대기')}</span><span>${p.bondWith?'결합 ♥':'미결합'}</span></div>
  <div class="abop-muted">각인 상대: ${html((p.bondPartners||[]).map(pid=>state.people[pid]?.name||pid).join(', ')||'없음')} · ${html(cycleModeLabel(cycleMode(p)))}</div>
  ${bondEffects(state,id)?`<div class="abop-muted">각인 페로몬: 상대 ${bondEffects(state,id).partnerScentSensitivity>=0?'+':''}${bondEffects(state,id).partnerScentSensitivity} · 타인 ${bondEffects(state,id).otherScentSensitivity} · 불쾌감 +${bondEffects(state,id).otherScentDiscomfort} · 실제 민감도(상대/타인) ${effectivePheromoneResponse(state,id).partnerSensitivity}/${effectivePheromoneResponse(state,id).otherSensitivity} · 분리 스트레스 (기본/현재 히트·러트) ${bondSeparationStress(state,id,{separated:true}).total}</div>`:''}
  <div class="abop-muted">지속 상태: ${p.medication.filter(x=>x.until>=state.clockHours).map(x=>html(drugLabel(x.drug))).join(', ')||'없음'}</div>
@@ -840,7 +855,7 @@ function render(){
  const m=meta(false);
  const theme=m?.config?.uiTheme||'auto';
  root.dataset.theme=theme==='light'||theme==='dark'?theme:(window.matchMedia?.('(prefers-color-scheme: dark)')?.matches?'dark':'light');
- root.innerHTML=`<div class="abop-window"><div class="abop-top"><span class="abop-brandmark" aria-hidden="true"></span><strong>그날의 사정 <small>ABO TRACKER</small></strong><span class="abop-version">v1.0.0</span><button title="테마 전환" aria-label="테마 전환" data-action="themeCycle" class="abop-theme-button">◐</button><button title="닫기" aria-label="닫기" data-action="close">✕</button></div>
+ root.innerHTML=`<div class="abop-window"><div class="abop-top"><span class="abop-brandmark" aria-hidden="true"></span><strong>그날의 사정 <small>ABO TRACKER</small></strong><span class="abop-version">v1.0.1</span><button title="테마 전환" aria-label="테마 전환" data-action="themeCycle" class="abop-theme-button">◐</button><button title="닫기" aria-label="닫기" data-action="close">✕</button></div>
  <div class="abop-shell"><nav class="abop-nav">${[['status','상태','▦'],['setup','초기 설정','◈'],['cycles','주기','◷'],['fertility','임신','✦'],['preferences','취향','♥'],['scenes','장면','▣'],['settings','설정','⚙']].map(([id,label,icon])=>`<button data-tab="${id}" class="${tab===id?'selected':''}"><span>${icon}</span><small>${label}</small></button>`).join('')}</nav>
  <main class="abop-main"><div class="abop-subhead"><span>◈ ${({'status':'상태','setup':'초기 설정','cycles':'주기','fertility':'임신','preferences':'취향','scenes':'장면','settings':'설정'}[tab]||tab.toUpperCase())} / ${html(S()?.chatId?'현재 채팅':'채팅 없음')}</span><span class="abop-dot">● ${working?'분석 중':'준비됨'}</span></div>${selectedSection()}</main></div><footer class="abop-statusbar" id="abop-statusline" role="status" aria-live="polite">${html(status)}</footer></div>`;
  const scrollArea=root.querySelector('.abop-main');if(scrollArea)scrollArea.scrollTop=previousScroll;
@@ -932,7 +947,8 @@ async function handlePanelChange(e){
   if(['baseCondition','basePheromone'].includes(field)){
    const n=Number(t.value);if(!Number.isFinite(n)||t.value.trim()===''||n<0||n>100)return setStatus('기초 수치는 0~100으로 입력하세요');value=Math.round(n);
   }
-  currentRoleOverrides(m,id)[field]=value;
+  if(field==='secondary'&&value==='unknown')delete currentRoleOverrides(m,id).secondary;
+  else currentRoleOverrides(m,id)[field]=value;
  }else if(t.dataset.config){m.config[t.dataset.config]=!!t.checked;
  }else if(t.dataset.postprocess){
   if(t.dataset.postprocess==='mode')saveSharedAnalysisSetting('postprocessMode',t.value);
@@ -1023,6 +1039,32 @@ async function handlePanelClick(e){
   }
   setStatus('각인 사건 저장 완료');return;
  }
+ if(act==='clearFixedField'||act==='resetInitialProfile'){
+  if(working||postprocessBusy)return setStatus('진행 중인 분석·후처리가 끝난 뒤 초기화하세요.');
+  const m=meta(),role=t.dataset.role;
+  if(!m||!['char','user','both'].includes(role))return;
+  const field=act==='clearFixedField'?el(`abop-clear-field-${role}`)?.value:null;
+  if(act==='clearFixedField'&&!field)return setStatus('해제할 고정 항목을 선택해 주세요.');
+  const message=field?`${role.toUpperCase()}의 ${field} 고정을 해제할까요?`:`${role==='both'?'CHAR + USER':role.toUpperCase()}의 초기 프로필 설정을 초기화할까요? RP 기록과 분석 사건은 삭제되지 않습니다.`;
+  if(!window.confirm(message))return;
+  const before=structuredClone({overrides:m.overrides,canon:m.canon,profileInitialized:m.profileInitialized,initialProposal:m.initialProposal,personaProfiles:m.personaProfiles,npcTracking:m.npcTracking});
+  let n=0;
+  try{n=resetProfileChoices(m,{role,field,target:selectedNpc(m)});}catch(err){return setStatus(err.message);}
+  if(!await persist()){
+   Object.assign(m,before);refresh();return setStatus('프로필 초기화 저장 실패 · 이전 설정 복원');
+  }
+  refresh();setStatus(field?`고정 해제 완료 · ${role.toUpperCase()} ${field}`:`초기 프로필 설정 초기화 완료 · ${n}개 수동 고정 해제`);return;
+ }
+ if(act==='recordMenstruationStart'||act==='recordMenstruationEnd'){
+  if(working)return setStatus('진행 중인 분석이 끝난 뒤 기록하세요.');
+  const role=t.dataset.role,s=branchState();
+  if(!['char','user'].includes(role)||!s?.people?.[role]?.menstruation.enabled)return setStatus('월경 추적이 활성화된 대상만 기록할 수 있습니다.');
+  const isEnd=act==='recordMenstruationEnd';
+  if(isEnd&&cycleForecast(s.people[role],s.clockHours,s.seed).menstruationStatus!=='active')return setStatus('현재 월경 중인 기록이 없습니다.');
+  if(!window.confirm(`${role.toUpperCase()}의 월경 ${isEnd?'종료':'시작'}를 현재 서사 시점에 기록할까요?`))return;
+  await addManualEvents([{kind:isEnd?'menstruation_end':'menstruation_start',person:role}]);
+  setStatus(`${role.toUpperCase()} 월경 ${isEnd?'종료':'시작'} 사건 기록 완료`);return;
+ }
  if(act==='resetPostprocessCache'){
   if(postprocessBusy||working)return setStatus('진행 중인 후처리가 끝난 뒤 초기화하세요.');
   const m=meta();if(!m)return;
@@ -1085,7 +1127,7 @@ async function handlePanelClick(e){
  if(act==='testConnection'){
   if(working)return;working=true;setStatus('분석 모델 연결 테스트 중…');render();
   try{const reply=await analysisRequest('Answer using only the word OK.','Connection test.',64);setStatus(`연결 성공 (${String(reply).trim().slice(0,48)})`);}
-  catch(err){console.warn('[ABO Pixel] connection test failed',err);setStatus(`연결 실패: ${readableProfileError(err)} | ${profileErrorHint(err)}`);}
+  catch(err){console.warn('[그날의 사정] connection test failed',readableProfileError(err));setStatus(`연결 실패: ${readableProfileError(err)} | ${profileErrorHint(err)}`);}
   finally{working=false;render();}return;
  }
  if(act==='cancelHistoryScan'){historyScanCancelled=true;setStatus('현재 AI 요청 완료 후 재분석을 중단합니다. 기존 데이터는 변경하지 않습니다.');return;}

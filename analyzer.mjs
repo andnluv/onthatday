@@ -1,5 +1,5 @@
 /* The classifier is intentionally read-only. All random decisions occur in core.mjs. */
-const ALLOWED=['time_advance','heat_start','rut_start','ovulation','bond','bond_loss','medication','exposure','pregnancy_reveal','delivery','pregnancy_end','preference','scene','vital_observation'];
+const ALLOWED=['time_advance','heat_start','rut_start','ovulation','menstruation_start','menstruation_end','bond','bond_loss','medication','exposure','pregnancy_reveal','delivery','pregnancy_end','preference','scene','vital_observation'];
 const DRUGS=['oral_suppressant','long_suppressant','emergency_suppressant','scent_blocker','symptom_inducer','cycle_inducer','unlicensed_mixture','emergency_contraceptive','oral_contraceptive'];
 const validPersonId=id=>['char','user'].includes(id)||/^npc:[a-z0-9_-]{2,48}$/i.test(String(id||''));
 const PREF_LEVELS=['latent','liked','strongly_liked','disliked','restricted'];
@@ -27,6 +27,7 @@ Output only one valid JSON object: {"events": [ ... ]}. Never invent missing fac
 Event shapes:
 - {"kind":"time_advance","hours":number,"evidence":"EXACT short quotation from one provided message"}. Clock advances only on explicit duration/time skip, not inferred from chat turn count.
 - {"kind":"heat_start"|"rut_start"|"ovulation","person":"char"|"user","evidence":"..."} only for explicitly confirmed start/ovulation.
+- {"kind":"menstruation_start"|"menstruation_end","person":"char"|"user","evidence":"..."} ONLY when a new menstrual period has explicitly BEGUN or ENDED in the current messages. Merely saying someone is currently menstruating, has cramps, or talking about an existing period is NOT a new start event. Never repeat ongoing state each reply.
 - {"kind":"medication","person":"char"|"user","drug":"${DRUGS.join('|')}","use_mode":"normal"|"misuse"|"unlicensed","evidence":"..."} only if taken/administered, not simply discussed.
 - {"kind":"exposure","gestator":"char"|"user","donor":"char"|"user","penetration":true,"deposition":true,"depositions":integer,"evidence":"..."} ONLY if explicit confirmed penetration into a reproductive route AND confirmed direct internal ejaculate deposition. No guessing from ambiguous intimacy or vague implications. Count only explicitly confirmed depositions, default 1 if a single one confirmed.
 - {"kind":"bond","actor":"char"|"user","target":"char"|"user","biteLocation":"pheromone_nape","biteConfirmed":true,"evidence":"..."} ONLY when the current narration establishes an Alpha ACTUALLY biting an Omega on the nape/back of neck, OR explicitly reports the completed creation of their bond. The words "pheromone gland" are NOT required. Accept natural Korean descriptions (목덜미를 물었다, 뒷목에 송곳니를 박았다, 각인이 성립했다) and equivalent English descriptions. Determine actor/target using context and known secondary genders; never reverse roles. Do not treat mere desire, attempted bites, kisses, scents, hypotheticals, dreams, flashbacks or recollections of existing bonds as NEW events. Emit only certain completed current events, never an uncertain event.
@@ -60,9 +61,16 @@ export function parseModelOutput(raw,userText='',assistantText=''){
   if(e.kind==='scene'&&e.person==='user'&&!fromUser)continue;
   if(e.kind==='bond'&&e.actor==='user'&&!fromUser)continue;
   if(e.kind==='pregnancy_reveal'&&e.knower==='user'&&!fromUser)continue;
-  if(['medication','heat_start','rut_start','ovulation','bond','bond_loss','delivery','pregnancy_end'].includes(e.kind)&&e.person==='user'&&!fromUser)continue;
+  if(['medication','heat_start','rut_start','ovulation','menstruation_start','menstruation_end','bond','bond_loss','delivery','pregnancy_end'].includes(e.kind)&&e.person==='user'&&!fromUser)continue;
   if(['time_advance'].includes(e.kind)&&(!Number.isFinite(e.hours)||e.hours<0||e.hours>8760))continue;
-  if(['heat_start','rut_start','ovulation','medication','pregnancy_reveal','delivery','pregnancy_end','preference','scene','vital_observation'].includes(e.kind)&&!['char','user'].includes(e.person))continue;
+  if(['heat_start','rut_start','ovulation','menstruation_start','menstruation_end','medication','pregnancy_reveal','delivery','pregnancy_end','preference','scene','vital_observation'].includes(e.kind)&&!['char','user'].includes(e.person))continue;
+  if(['menstruation_start','menstruation_end'].includes(e.kind)){
+   const begin=e.kind==='menstruation_start';
+   const positive=begin
+    ?/(?:생리|월경)(?:가|이|는|도)?\s*(?:막\s*)?(?:시작|터졌|터지|나오기\s*시작)|(?:period|menstruation)\s+(?:just\s+)?(?:started|began)|(?:started|began)\s+(?:her|his|their|the)?\s*(?:period|menstruation)/i
+    :/(?:생리|월경)(?:가|이|는|도)?\s*(?:막\s*)?(?:끝났|끝나|종료|멈췄|멎었)|(?:period|menstruation)\s+(?:has\s+)?(?:ended|stopped|finished)|(?:ended|finished|stopped)\s+(?:her|his|their|the)?\s*(?:period|menstruation)/i;
+   if(!positive.test(e.evidence))continue;
+  }
   if(e.kind==='medication'&&(!DRUGS.includes(e.drug)||!['normal','misuse','unlicensed'].includes(e.use_mode)))continue;
   if(e.kind==='exposure'){
    if(!['char','user'].includes(e.gestator)||!['char','user'].includes(e.donor)||e.gestator===e.donor)continue;

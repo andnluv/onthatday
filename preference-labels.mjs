@@ -286,7 +286,7 @@ export const RATE_LABELS = Object.freeze({
 });
 export const EVENT_KIND_LABELS = Object.freeze({
   time_advance:'서사 시간 경과',preference:'성향 정보 기록',scene:'장면 정보 기록',
-  scene_unverified:'현재 장면 확인 불가',heat_start:'히트 시작',rut_start:'러트 시작',
+  scene_unverified:'현재 장면 확인 불가',heat_start:'히트 시작',rut_start:'러트 시작',menstruation_start:'월경 시작',menstruation_end:'월경 종료',
   ovulation:'배란',bond:'각인 성립',bond_loss:'각인 상실',
   medication:'약물 사용',exposure:'임신 가능 사건',
   pregnancy_reveal:'임신 인지',delivery:'출산',pregnancy_end:'임신 종료',

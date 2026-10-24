@@ -2,7 +2,7 @@
 
 **ABO worldbuilding and roleplay state tracking for SillyTavern**
 
-Manage fictional ABO settings for your character (CHAR) and user persona (USER), including cycles, condition, pheromone output, bonding, preferences, pregnancy, and narrative time. The extension works per chat without editing existing character cards. Tavern Helper is not required.
+Manage fictional ABO settings for your character (CHAR) and user persona (USER), including cycles, condition, pheromone output, bonding, preferences, pregnancy, and narrative time. The extension works per chat without editing existing character cards.
 
 [한국어 안내](README.md)
 
@@ -15,17 +15,17 @@ Manage fictional ABO settings for your character (CHAR) and user persona (USER),
 
 To update an existing installation, use the extension updater and refresh the page. Back up long-running chats before updating.
 
-### Importing World Info
+### Bundled World Info
 
-**Installing the extension does not import or enable World Info automatically.** Import `worldinfo/[WI]Geunalui_Sajeong_v1.0.0.json` separately through SillyTavern's World Info interface and enable or link it to the chat where you want to use it.
+The release includes `worldinfo/[WI]Geunalui_Sajeong_v1.0.0.json` and a matching rules reference document. You do **not** need to import the JSON separately to use the extension's initial analysis and state tracking. Import it through SillyTavern's World Info interface only if you want the lorebook entries enabled separately.
 
-If you already use the same World Info, back up and replace the existing copy rather than enabling duplicates. When combining lorebooks, review activation conditions and insertion order.
+Check for duplicate active entries if you have already imported the same World Info.
 
 ## Features
 
-- **Initial setup and preference analysis:** Review, select, and edit suggested ABO attributes and preference entries based on character cards and user personas.
+- **Initial setup and preference analysis:** Review, select, and edit suggested ABO attributes and preference entries based on character cards and user personas. Clear individual manual locks or reset either or both profiles without deleting RP event history.
 - **Condition tracking:** Track individual condition and pheromone output values and update them from supported narrative events.
-- **Cycle tracking:** Manage heat, rut, and menstruation stages and their narrative-time forecasts.
+- **Cycle tracking:** Manage heat, rut, and menstruation stages and their narrative-time forecasts. An explicitly ongoing period in the opening is reflected, and start/end events can be recorded manually from the Cycle tab.
 - **Medication and pregnancy:** Track fictional suppressants, inducers, contraception, pregnancy-risk events, and pregnancy state, with a pregnancy-display privacy option.
 - **Bonding and relationships:** Track marks, relationship effects, separation stress, and changes with configurable bond rules.
 - **Preferences and scenes:** Manage preferences, dislikes, and boundaries. The current-scene view focuses on CHAR, with verified USER scene details available separately.

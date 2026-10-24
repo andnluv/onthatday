@@ -237,3 +237,10 @@
 #abop-panel .abop-scenes-char-first .abop-scene-user{width:100%;max-width:none}
 #abop-panel .abop-scenes-char-first .abop-scene-user>summary{font-size:13px;font-weight:700;color:var(--ab-lilac);padding:3px 0}
 #abop-panel .abop-scenes-char-first .abop-scene-user[open]>summary{margin-bottom:14px;border-bottom:1px solid var(--ab-soft-line);padding-bottom:10px}
+
+/* Release 1.0.1: explicit menstruation badge / profile reset. */
+.abop-menstruating{padding:7px 10px;border-left:3px solid #e98aaa;background:rgba(233,138,170,.12);font-weight:650}
+.abop-menses-tag{border-color:#e98aaa!important;color:#eb8fae!important}
+.abop-reset-row{border:1px solid var(--abop-border,#7775);padding:10px;margin:8px 0}
+.abop-reset-row b{display:block;margin-bottom:8px}
+.abop-reset-row select{min-width:100px;max-width:100%}
