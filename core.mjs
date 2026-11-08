@@ -26,8 +26,8 @@ export const DRUGS = Object.freeze({
   oral_contraceptive:{adverse:.08,duration:[24,24]}
 });
 export const DEFAULT_CONFIG = Object.freeze({
-  enabled:true,autoAnalyze:true,injectState:true,hideTruth:false,pregnancyEnabled:true,asymmetricBond:false,bondBaseSeparationStress:10,bondCycleSeparationStress:20,
-  analysisConnection:'',customApiUrl:'',customModel:'',setupMaxTokens:5000,
+  enabled:true,autoAnalyze:true,injectState:true,hideTruth:false,pregnancyEnabled:true,noPregnancyEver:false,asymmetricBond:false,bondBaseSeparationStress:10,bondCycleSeparationStress:20,
+  analysisConnection:'',customApiUrl:'',customModel:'',setupMaxTokens:5000,analysisMaxTokens:0,
   rate:{rise:.03,fertile:.14,peak:.30,fall:.06},
   sideEffectScale:1, windowCap:.85,
   oralContraceptiveEffectiveness:.85,emergencyContraceptiveReduction:.75,longSuppressantSuccess:.90,
@@ -202,6 +202,8 @@ export function encounterChance(single,n){
  if(count===1)return p;
  return 1-Math.pow(1-p,1+.5*(1-Math.exp(-.9*(count-1))));
 }
+/** Pregnancy is disabled either by the per-chat simulation toggle or by the absolute world-law toggle. */
+export function pregnancyBlocked(config){return config?.pregnancyEnabled===false||config?.noPregnancyEver===true;}
 export function pairMultiplier(donor,gestator,clock){
  const dp=phaseAt(donor.cycle,clock), gp=phaseAt(gestator.cycle,clock);
  if(donor.secondary==='alpha'&&gestator.secondary==='omega'){
@@ -221,7 +223,7 @@ export function activeContraceptionFactor(state,gestator,time=state.clockHours){
   ? 1-effectiveness : 1;
 }
 export function eventChance(state,event){
- if(state.config.pregnancyEnabled===false)return {p:0,reason:'pregnancy_disabled'};
+ if(pregnancyBlocked(state.config))return {p:0,reason:'pregnancy_disabled'};
  const g=state.people[event.gestator],d=state.people[event.donor];
  if(!g||!d||!areCompatible(d,g)||event.penetration!==true||event.deposition!==true)return {p:0,reason:'gate_failed'};
  if(g.pregnancy.status!=='none')return {p:0,reason:'already_pregnant'};
@@ -322,7 +324,7 @@ function updateCycles(state){
  for(const p of Object.values(state.people)){
   p.cycle.phase=phaseForPerson(p,state.clockHours);
   p.menstruation.phase=menstruationPhase(p,state.clockHours,state.seed);
-  if(state.config.pregnancyEnabled===false)continue;
+  if(pregnancyBlocked(state.config))continue;
   if(p.pregnancy.status==='conception_pending'&&state.clockHours>=p.pregnancy.implantAt){p.pregnancy.status='pregnant_unaware';}
   if(p.pregnancy.status==='postpartum'&&state.clockHours>=p.cycle.anchorHour){p.pregnancy.status='ended';}
   if(p.pregnancy.status.startsWith('pregnant')&&Number.isFinite(p.pregnancy.dueAt)&&state.clockHours>=p.pregnancy.dueAt){p.pregnancy.status='due';}
@@ -331,7 +333,7 @@ function updateCycles(state){
  for(const p of Object.values(state.people))recalculateVitals(p,state.clockHours);
 }
 function updateWindow(state,gestator,ovulation){
- if(state.config.pregnancyEnabled===false)return;
+ if(pregnancyBlocked(state.config))return;
  const key=`${gestator}:${ovulation}`;
  const w=state.windows[key]||{id:key,gestator,ovulation,roll:dice(state.seed,state.people[gestator]?.identityId?`fertile:${state.people[gestator].identityId}:${key}`:`fertile:${key}`),exposures:[],total:0};
  state.windows[key]=w;
@@ -469,20 +471,20 @@ export function applyEvent(state,input){
   break;
  }
  case 'pregnancy_reveal':{
-  if(state.config.pregnancyEnabled===false)break;
+  if(pregnancyBlocked(state.config))break;
   if(p&&['char','user'].includes(e.knower)&&['suspected','confirmed'].includes(e.level)){
    state.people[e.knower].awareness.pregnancy=e.level;
   }
   break;
  }
  case 'delivery':{
-  if(state.config.pregnancyEnabled===false)break;
+  if(pregnancyBlocked(state.config))break;
   if(p&&p.pregnancy.status!=='none'){
    p.pregnancy.status='postpartum';p.pregnancy.deliveryAt=state.clockHours;
    p.cycle.anchorHour=state.clockHours+pickInt(state.seed,`recover:${e.id}`,28,42)*24;
   }break;
  }
- case 'pregnancy_end':if(p&&state.config.pregnancyEnabled!==false){p.pregnancy.status='ended';p.cycle.anchorHour=state.clockHours+pickInt(state.seed,`recover:${e.id}`,28,42)*24;}break;
+ case 'pregnancy_end':if(p&&!pregnancyBlocked(state.config)){p.pregnancy.status='ended';p.cycle.anchorHour=state.clockHours+pickInt(state.seed,`recover:${e.id}`,28,42)*24;}break;
  case 'vital_observation':if(p){
    const cond=Object.hasOwn(CONDITION_OBSERVATIONS,e.condition)?e.condition:null;
    const pher=Object.hasOwn(PHEROMONE_OBSERVATIONS,e.emission)?e.emission:null;
@@ -558,7 +560,7 @@ export function sortedRecords(chat,ledger){
 }
 export function formatPrompt(s,hideTruth=false){
  const out=['[ABO TRACKER — CONTINUITY / NOT CHARACTER KNOWLEDGE]',`Story clock: D${Math.floor(s.clockHours/24)} ${Math.floor(s.clockHours%24)}h. Treat time as story time, not real time.`];
- if(s.config.pregnancyEnabled===false)out.push('PREGNANCY TRACKING OFF for this chat: do not introduce tracker-generated pregnancy, conception outcomes, pregnancy symptoms or due dates.');
+ if(pregnancyBlocked(s.config))out.push(s.config.noPregnancyEver===true?'WORLD LAW (ABSOLUTE): Pregnancy is biologically impossible in this world for every character, regardless of ABO type, sex, heat/rut, ovulation, intercourse, ejaculation or medication. Never depict or imply conception, pregnancy, pregnancy tests or symptoms, miscarriage, or birth involving any character, and never treat such a possibility as real, even as a scare. This overrides every other rule.':'PREGNANCY TRACKING OFF for this chat: do not introduce tracker-generated pregnancy, conception outcomes, pregnancy symptoms or due dates.');
  for(const [id,p] of Object.entries(s.people)){
   const cycle=cycleDisplay(p);
   const bondData=bondEffects(s,id);if(bondData)out.push(`${id.toUpperCase()} bond effects: partners=${bondData.partners.join(',')}; active=${bondData.active}; partner pheromone sensitivity ${bondData.partnerScentSensitivity>0?'+':''}${bondData.partnerScentSensitivity}; others sensitivity ${bondData.otherScentSensitivity}; others discomfort +${bondData.otherScentDiscomfort}; cycle separation stress +${bondData.heatSeparationStress} (max once if heat or rut is active), baseline separated stress +${s.config.bondBaseSeparationStress??10}. Asymmetric bond mode=${s.config.asymmetricBond?'ON (Omega effects only)':'OFF (both partners affected)'}.`);
@@ -572,7 +574,7 @@ export function formatPrompt(s,hideTruth=false){
   if(symptoms.length)out.push(`${id.toUpperCase()} observed fictional medication reactions=${symptoms.map(x=>(x.symptoms||[x.type||'unspecified']).join('/')).join(', ')}. These are NOT proof of tolerance or pregnancy.`);
   if(p.recentScenes?.length)out.push(`${id.toUpperCase()} recent scenes (continuity only)=${p.recentScenes.slice(-3).map(x=>(x.play||[]).slice(0,3).join('/')||x.contact||x.vocal||'scene').join(' > ')}.`);
   const pr=p.pregnancy;
-  if(s.config.pregnancyEnabled===false)continue;
+  if(pregnancyBlocked(s.config))continue;
   if(!hideTruth&&pr.status!=='none')out.push(`INTERNAL PHYSIOLOGY for ${p.name}: pregnancy=${pr.status}, elapsed=${pr.conceivedAt===null?'?':Math.floor((s.clockHours-pr.conceivedAt)/24)} days. Do not disclose this as knowledge unless in-story discovery established. Subject awareness=${p.awareness.pregnancy}.`);
   else out.push(`${p.name} awareness of pregnancy=${p.awareness.pregnancy}.`);
  }

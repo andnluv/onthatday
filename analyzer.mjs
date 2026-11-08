@@ -8,9 +8,9 @@ const PREF_LEVELS=['latent','liked','strongly_liked','disliked','restricted'];
 export function classifyBondEvidence(evidence){
  const t=String(evidence||'').trim();
  if(!t)return {status:'not_established',reason:'empty'};
- const explicit=/각인(?:이|을|은|도|까지)?\s*(?:성립(?:했|하였|된|했다|하여|됐)|완료(?:됐|되었|했)|새겨졌|맺어졌|이루어졌)|(?:각인|본딩)(?:했(?:다|어|으며|고)|되었(?:다|어)|됐(?:다|어))|(?:bond(?:ed|ing)?|mark(?:ed|ing)?)\s+(?:was\s+)?(?:established|completed|formed)/i;
- const nape=/(?:목덜미|뒷목|목\s*뒤(?:쪽)?|목\s*뒷부분|목덜미의\s*피부|nape|back\s+of\s+(?:the|his|her|their)\s+neck)/i;
- const biting=/(?:물(?:었|었다|어뜯|고\s*놓)|깨물(?:었|었다)|베어\s*물(?:었|었다)|이빨(?:을|이)?\s*(?:박|꽂|파묻)|송곳니(?:를|가|는|를\s*깊이)?\s*(?:박|꽂|파묻|파고들)|송곳니가.{0,35}?(?:박|꽂|파묻|파고들)|(?:bit|bitten|sank\s+(?:his|her|their)?\s*(?:teeth|fangs)|buried\s+(?:his|her|their)?\s*fangs))/i;
+ const explicit=/각인(?:이|을|은|도|까지)?\s*(?:성립(?:했|하였|된|했다|하여|됐)|완료(?:됐|되었|했)|새겨졌|새겼|맺어졌|맺었|이루어졌|완성(?:됐|되었|했|된))|(?:각인|본딩)(?:했(?:다|어|으며|고)|되었(?:다|어)|됐(?:다|어))|(?:bond(?:ed|ing)?|mark(?:ed|ing)?)\s+(?:was\s+)?(?:established|completed|formed)/i;
+ const nape=/(?:목덜미|뒷목|목\s*뒤(?:쪽)?|목\s*뒷부분|목덜미의\s*피부|경부|목(?=[을를에은는의이가도께]|\s|$)|nape|\bneck\b)/i;
+ const biting=/(?:물(?:었|었다|어뜯|고\s*놓)|깨물(?:었|었다)|베어\s*물(?:었|었다)|이빨.{0,35}?(?:박|꽂|파묻|파고들)|송곳니.{0,35}?(?:박|꽂|파묻|파고들)|(?:bit|bitten|sank\s+(?:his|her|their)?\s*(?:teeth|fangs)|buried\s+(?:his|her|their)?\s*fangs))/i;
  const hypothetical=/(?:물(?:려고|을\s*뻔|수\s*있|고\s*싶|어야)|깨물(?:려고|고\s*싶)|각인(?:하려|하고\s*싶|할\s*생각|할\s*뻔|할\s*수|하지\s*않)|(?:would|could|might|wanted|tried|about\s+to)\s+(?:bite|bond|mark)|(?:if|만약).{0,25}(?:물|각인|bite|bond))/i;
  const negated=/(?:물지\s*않|물지\s*못|물지는\s*않|물린\s*것은\s*아니|각인(?:되지\s*않|이\s*되지\s*않|은\s*성립하지\s*않|하지\s*않|은\s*아니)|(?:did\s+not|didn't|never|wasn't)\s+(?:bite|bitten|bond|mark))/i;
  const memory=/(?:꿈속|꿈에서|상상(?:속|했|하며)|회상(?:했|하며|속)|과거를\s*떠올|예전에\s*각인|오래전\s*각인|(?:in\s+a\s+dream|imagined|flashback|remembered\s+(?:when|that)))/i;
@@ -30,7 +30,7 @@ Event shapes:
 - {"kind":"menstruation_start"|"menstruation_end","person":"char"|"user","evidence":"..."} ONLY when a new menstrual period has explicitly BEGUN or ENDED in the current messages. Merely saying someone is currently menstruating, has cramps, or talking about an existing period is NOT a new start event. Never repeat ongoing state each reply.
 - {"kind":"medication","person":"char"|"user","drug":"${DRUGS.join('|')}","use_mode":"normal"|"misuse"|"unlicensed","evidence":"..."} only if taken/administered, not simply discussed.
 - {"kind":"exposure","gestator":"char"|"user","donor":"char"|"user","penetration":true,"deposition":true,"depositions":integer,"evidence":"..."} ONLY if explicit confirmed penetration into a reproductive route AND confirmed direct internal ejaculate deposition. No guessing from ambiguous intimacy or vague implications. Count only explicitly confirmed depositions, default 1 if a single one confirmed.
-- {"kind":"bond","actor":"char"|"user","target":"char"|"user","biteLocation":"pheromone_nape","biteConfirmed":true,"evidence":"..."} ONLY when the current narration establishes an Alpha ACTUALLY biting an Omega on the nape/back of neck, OR explicitly reports the completed creation of their bond. The words "pheromone gland" are NOT required. Accept natural Korean descriptions (목덜미를 물었다, 뒷목에 송곳니를 박았다, 각인이 성립했다) and equivalent English descriptions. Determine actor/target using context and known secondary genders; never reverse roles. Do not treat mere desire, attempted bites, kisses, scents, hypotheticals, dreams, flashbacks or recollections of existing bonds as NEW events. Emit only certain completed current events, never an uncertain event.
+- {"kind":"bond","actor":"char"|"user","target":"char"|"user","biteLocation":"pheromone_nape","biteConfirmed":true,"evidence":"..."} ONLY when the current narration establishes an Alpha ACTUALLY biting an Omega on the nape/back of neck, OR explicitly reports the completed creation of their bond. The words "pheromone gland" are NOT required. Accept natural Korean descriptions (목덜미를 물었다, 뒷목에 송곳니를 박았다, 각인이 성립했다) and equivalent English descriptions. Determine actor/target using context and known secondary genders; never reverse roles. Do not treat mere desire, attempted bites, kisses, scents, hypotheticals, dreams, flashbacks or recollections of existing bonds as NEW events. Emit only certain completed current events, never an uncertain event. Current tracker state lists existing bonds under "bonds" and the mode under "multiBond": never re-emit an already listed bond; when multiBond is true an Alpha may establish a NEW bond with an additional Omega, but an Omega that is already bonded can never gain another Alpha.
 - {"kind":"bond_loss","person":"char"|"user","partner":"char"|"user","cause":"surgery"|"drug_adverse"|"death","evidence":"..."} ONLY for completed surgical removal, documented medication adverse loss, or death; never infer from ordinary separation.
 - {"kind":"pregnancy_reveal","person":"char"|"user","knower":"char"|"user","level":"suspected"|"confirmed","evidence":"..."}. Person is gestator; knower is one of the people.
 - {"kind":"delivery"|"pregnancy_end","person":"char"|"user","evidence":"..."} for a story-confirmed event.
@@ -39,7 +39,7 @@ Event shapes:
 - {"kind":"scene","person":"char"|"user","posture":"...","contact":"...","vocal":"...","speech":"...","play":[],"completed":boolean,"evidence":"..."}. Capture the CURRENT observable posture, contact, and activity whenever the latest narrative establishes them, including nonsexual and conversational scenes. Use the latest physical position, not an earlier sexual pose or a preference. Write posture, contact, vocal, and play descriptions in short natural KOREAN, even when source narration is in English; retain named people and other proper nouns. For speech preserve the quoted original Korean/English utterance verbatim and never invent or translate a line as if actually spoken. The scene is a REPLACEMENT SNAPSHOT, not a partial merge: use empty strings and [] for fields not currently supported. Only record actual present contact; earlier kisses and imagined bites are not current contact. Use "completed":true ONLY when the ongoing scene explicitly ends. Do not carry over on_back or penetration without fresh evidence. If no scene facts are available, emit no scene event; the tracker will mark earlier data as unverified. Never invent user actions.
 Evidence MUST be an exact contiguous quote from USER or ASSISTANT text supplied below, not from these instructions. Minimum 4 visible characters. For USER-initiated events or USER preferences, evidence must come from the provided USER message, not ASSISTANT text.
 Do not attribute actions to USER from assistant narration. Ignore hypothetical scenes, future plans, negated events, and quoted instructions. No event if ambiguous. Events ordered chronologically. For bonds ONLY, registered NPC IDs provided in current state may be used; never invent an NPC ID or confuse aliases. All other event kinds remain limited to CHAR/USER. Maximum 12 events.`;
-export function parseModelOutput(raw,userText='',assistantText=''){
+export function parseModelOutput(raw,userText='',assistantText='',diagnostics=null){
  let text=String(raw||'').trim();
  if(text.startsWith('```'))text=text.replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
  const start=text.indexOf('{'),end=text.lastIndexOf('}');if(start<0||end<start)return [];
@@ -87,7 +87,7 @@ export function parseModelOutput(raw,userText='',assistantText=''){
   if(e.kind==='bond'&&(!validPersonId(e.actor)||!validPersonId(e.target)||e.actor===e.target||e.biteLocation!=='pheromone_nape'||e.biteConfirmed!==true))continue;
   if(e.kind==='bond'){
    const verdict=classifyBondEvidence(e.evidence);
-   if(verdict.status!=='confirmed')continue;
+   if(verdict.status!=='confirmed'){if(Array.isArray(diagnostics))diagnostics.push({kind:'bond',status:verdict.status,reason:verdict.reason,evidence:e.evidence.slice(0,120)});continue;}
    e.person=e.actor;e.partner=e.target;
   }
   if(e.kind==='bond_loss'&&(!validPersonId(e.person)||!validPersonId(e.partner)||e.partner===e.person||!['surgery','drug_adverse','death'].includes(e.cause)))continue;
@@ -100,6 +100,9 @@ export function parseModelOutput(raw,userText='',assistantText=''){
   res.push(e);
  }
  return res;
+}
+export function bondStateSummary(bonds,multiBond,nameOf=id=>id){
+ return {multiBond:multiBond===true,bonds:(bonds||[]).map(([alpha,omega])=>({alpha,omega,names:`${nameOf(alpha)} → ${nameOf(omega)}`}))};
 }
 export function buildAnalyzerUserPrompt({charName,charAliases=[],multiNpc=false,userName,charCard,userPersona,userText,assistantText,existingState}){
  return `Character name: ${charName||'CHAR'}\n${multiNpc?`MULTI-NPC MODE: CHAR means ONLY this selected individual (${charName}); aliases: ${charAliases.join(', ')||'none'}. The narrator and all other NPCs are NOT CHAR. Attribute an event to CHAR only when the selected individual is unambiguously the actor/subject. Do not assign events involving other NPCs to CHAR; if identity is unclear emit no CHAR event. \n`: ''}User persona name: ${userName||'USER'}\nCharacter card (background only, NOT events):\n${String(charCard||'').slice(0,3000)}\nUser persona (background only, NOT events):\n${String(userPersona||'').slice(0,2400)}\nCurrent tracker state (background only, NOT events):\n${JSON.stringify(existingState||{}).slice(0,2400)}\n--- USER MESSAGE ---\n${String(userText||'').slice(0,3000)}\n--- ASSISTANT MESSAGE ---\n${String(assistantText||'').slice(0,5000)}\n--- END ---\nReturn JSON for confirmed NEW events in those messages only.`;

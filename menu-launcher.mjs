@@ -11,7 +11,7 @@ export function mountExtensionLaunchers(doc,openPanel){
  if(menu&&!doc.getElementById(MENU_ENTRY_ID)){
   const entry=doc.createElement('div');
   entry.id=MENU_ENTRY_ID;
-  entry.className='list-group-item flex-container flexGap5';
+  entry.className='list-group-item flex-container flexGap5 interactable';
   entry.setAttribute('role','button');
   entry.setAttribute('tabindex','0');
   entry.setAttribute('aria-label','그날의 사정 열기');
@@ -20,6 +20,7 @@ export function mountExtensionLaunchers(doc,openPanel){
   glyph.className='fa-solid fa-heart-pulse extensionsMenuExtensionButton';
   glyph.setAttribute('aria-hidden','true');
   const name=doc.createElement('span');
+  name.className='abop-menu-entry-label';
   name.textContent='그날의 사정';
   entry.append(glyph,name);
   entry.addEventListener('click',openPanel);
