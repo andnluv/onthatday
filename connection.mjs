@@ -39,36 +39,16 @@ export function readableProfileError(error){
  if(status&&!useful.some(x=>new RegExp(`\\b(?:HTTP\\s*)?${status}\\b`).test(x)))useful.unshift(`HTTP ${status}`);
  return (useful.join(' → ')||redactErrorSecrets(error instanceof Error?error.message:error||'원인 미확인')).slice(0,800);
 }
-const textOfPart=p=>typeof p==='string'?p:(p&&typeof p==='object'&&(p.type===undefined||p.type==='text'||p.type==='output_text')&&typeof p.text==='string'?p.text:'');
-const textOfContent=c=>typeof c==='string'?c:Array.isArray(c)?c.map(textOfPart).join(''):'';
-// Normalize the response shapes returned by Chat Completion, Text Completion, Claude and Gemini profiles.
-// Reasoning/thinking text is intentionally NOT returned as an answer.
 export function extractedText(value){
  if(typeof value==='string')return value;
- if(!value||typeof value!=='object')return '';
- const candidates=[
-  textOfContent(value.content),
-  textOfContent(value.choices?.[0]?.message?.content),
-  typeof value.choices?.[0]?.text==='string'?value.choices[0].text:'',
-  textOfContent(value.candidates?.[0]?.content?.parts),
-  typeof value.output_text==='string'?value.output_text:'',
-  typeof value.response==='string'?value.response:'',
-  typeof value.text==='string'?value.text:''
- ];
- return candidates.find(t=>typeof t==='string'&&t.trim())||'';
-}
-// True when the provider returned reasoning but no answer, i.e. the output budget was spent while thinking.
-export function hasReasoningOnly(value){
- if(!value||typeof value!=='object')return false;
- const reasoning=[value.reasoning,value.reasoning_content,value.choices?.[0]?.message?.reasoning_content,value.choices?.[0]?.message?.reasoning];
- return !extractedText(value).trim()&&reasoning.some(r=>typeof r==='string'&&r.trim());
-}
-export class EmptyProfileResponseError extends Error{
- constructor(message,{reasoningOnly=false,maxTokens=0}={}){super(message);this.name='EmptyProfileResponseError';this.reasoningOnly=reasoningOnly;this.maxTokens=maxTokens;}
+ if(typeof value?.content==='string')return value.content;
+ if(Array.isArray(value?.content))return value.content.map(p=>typeof p==='string'?p:p?.text||'').join('');
+ if(typeof value?.choices?.[0]?.message?.content==='string')return value.choices[0].message.content;
+ if(typeof value?.response==='string')return value.response;
+ return '';
 }
 export function profileErrorHint(error){
  const e=readableProfileError(error).toLowerCase();
- if(/추론.*출력 토큰|reasoning.*token/.test(e))return '추론(thinking) 모델이 출력 토큰을 사고 과정에 모두 사용했습니다. 모델의 추론 강도·thinking 예산을 낮추거나, 분석 출력 토큰 한도를 늘리세요.';
  if(/vertex ai express|vertex.*express mode/.test(e))return 'Vertex AI Express용 API 키를 SillyTavern 연결 설정에 등록한 뒤 해당 프로필을 갱신하세요.';
  if(/profile not found|연결 프로필을 찾지|연결 프로필이 없거나 지원되지|프로필의 api 형식이 지원되지/.test(e))return '저장된 연결 프로필이 없거나 지원되지 않습니다. 연결 관리자에서 프로필을 다시 선택하고 저장 상태를 확인하세요.';
  if(/\b401\b|unauthoriz|authenticat|api key|invalid key|credential/.test(e))return 'API 인증 정보를 확인하세요. 공급자별 API 키 또는 자격 증명을 등록한 뒤 연결 프로필을 갱신하세요.';
@@ -93,28 +73,12 @@ export async function requestUsingProfile(service,profileId,systemPrompt,prompt,
  if(typeof service.validateProfile==='function')service.validateProfile(profile);
  else if(typeof service.isProfileSupported==='function'&&!service.isProfileSupported(profile))throw new Error('선택한 연결 프로필의 API 형식이 지원되지 않습니다.');
  const messages=[{role:'system',content:String(systemPrompt)},{role:'user',content:String(prompt)}];
- const attempt=async tokens=>{
-  const result=await service.sendRequest(profileId,messages,tokens,
+ try{
+  const result=await service.sendRequest(profileId,messages,maxTokens,
    {stream:false,extractData:true,includePreset:false,includeInstruct:true});
   const response=extractedText(result);
-  if(response.trim())return response;
-  const reasoningOnly=hasReasoningOnly(result);
-  throw new EmptyProfileResponseError(reasoningOnly
-   ?`추론 모델이 출력 토큰(${tokens})을 사고 과정에 모두 사용해 본문이 비어 있습니다.`
-   :'저장된 프로필에서 빈 텍스트 응답을 반환했습니다.',{reasoningOnly,maxTokens:tokens});
- };
- try{
-  try{return await attempt(maxTokens);}
-  catch(first){
-   // Only an empty answer is retried (once, with a larger output budget). API errors keep their real cause.
-   if(!(first instanceof EmptyProfileResponseError))throw first;
-   const boosted=Math.min(16000,Math.max(Math.ceil(maxTokens*1.5),maxTokens+1500));
-   try{return await attempt(boosted);}
-   catch(second){
-    if(second instanceof EmptyProfileResponseError)throw new EmptyProfileResponseError(`${second.message} (출력 한도를 ${maxTokens}→${boosted}로 늘려 1회 재시도했으나 동일)`,{reasoningOnly:second.reasoningOnly||first.reasoningOnly,maxTokens:boosted});
-    throw second;
-   }
-  }
+  if(!response.trim())throw new Error('저장된 프로필에서 빈 텍스트 응답을 반환했습니다.');
+  return response;
  }catch(e){
   throw new Error(`저장된 프로필 호출 실패: ${readableProfileError(e)}`,{cause:e});
  }

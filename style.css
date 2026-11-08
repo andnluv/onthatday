@@ -240,13 +240,7 @@
 
 /* Release 1.0.1: explicit menstruation badge / profile reset. */
 .abop-menstruating{padding:7px 10px;border-left:3px solid #e98aaa;background:rgba(233,138,170,.12);font-weight:650}
-#abop-panel .abop-menses-tag{border-color:#e98aaa!important;color:#eb8fae!important}
+.abop-menses-tag{border-color:#e98aaa!important;color:#eb8fae!important}
 .abop-reset-row{border:1px solid var(--abop-border,#7775);padding:10px;margin:8px 0}
 .abop-reset-row b{display:block;margin-bottom:8px}
 .abop-reset-row select{min-width:100px;max-width:100%}
-
-/* Wand-menu entry: pinned so third-party theme extensions that restyle #extensionsMenu / .list-group-item cannot break the layout. */
-#abop-extension-menu-entry{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:5px!important;box-sizing:border-box!important;width:100%!important;min-height:1.6em;padding:5px 8px;white-space:nowrap!important;cursor:pointer;position:static!important;float:none!important;transform:none!important;overflow:hidden}
-#abop-extension-menu-entry>span{display:inline-block!important;position:static!important;transform:none!important}
-#abop-extension-menu-entry>.extensionsMenuExtensionButton{flex:0 0 auto;width:1.25em;text-align:center}
-#abop-extension-menu-entry>.abop-menu-entry-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
