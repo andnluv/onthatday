@@ -1,3 +1,4 @@
+import {nonReproductiveDeposition} from './exposure-route.mjs';
 /* The classifier is intentionally read-only. All random decisions occur in core.mjs. */
 const ALLOWED=['time_advance','heat_start','rut_start','ovulation','menstruation_start','menstruation_end','bond','bond_loss','medication','exposure','pregnancy_reveal','delivery','pregnancy_end','preference','scene','vital_observation'];
 const DRUGS=['oral_suppressant','long_suppressant','emergency_suppressant','scent_blocker','symptom_inducer','cycle_inducer','unlicensed_mixture','emergency_contraceptive','oral_contraceptive'];
@@ -8,9 +9,9 @@ const PREF_LEVELS=['latent','liked','strongly_liked','disliked','restricted'];
 export function classifyBondEvidence(evidence){
  const t=String(evidence||'').trim();
  if(!t)return {status:'not_established',reason:'empty'};
- const explicit=/각인(?:이|을|은|도|까지)?\s*(?:성립(?:했|하였|된|했다|하여|됐)|완료(?:됐|되었|했)|새겨졌|새겼|맺어졌|맺었|이루어졌|완성(?:됐|되었|했|된))|(?:각인|본딩)(?:했(?:다|어|으며|고)|되었(?:다|어)|됐(?:다|어))|(?:bond(?:ed|ing)?|mark(?:ed|ing)?)\s+(?:was\s+)?(?:established|completed|formed)/i;
- const nape=/(?:목덜미|뒷목|목\s*뒤(?:쪽)?|목\s*뒷부분|목덜미의\s*피부|경부|목(?=[을를에은는의이가도께]|\s|$)|nape|\bneck\b)/i;
- const biting=/(?:물(?:었|었다|어뜯|고\s*놓)|깨물(?:었|었다)|베어\s*물(?:었|었다)|이빨.{0,35}?(?:박|꽂|파묻|파고들)|송곳니.{0,35}?(?:박|꽂|파묻|파고들)|(?:bit|bitten|sank\s+(?:his|her|their)?\s*(?:teeth|fangs)|buried\s+(?:his|her|their)?\s*fangs))/i;
+ const explicit=/각인(?:이|을|은|도|까지)?\s*(?:성립(?:했|하였|된|했다|하여|됐)|완료(?:됐|되었|했)|새겨졌|새겼|새기|남겼|남기|맺어졌|맺었|이루어졌|완성(?:됐|되었|했|된))|(?:각인|본딩)(?:했(?:다|어|으며|고)|되었(?:다|어)|됐(?:다|어))|(?:bond(?:ed|ing)?|mark(?:ed|ing)?)\s+(?:was\s+)?(?:established|completed|formed)|(?:番|つがい)[、\s]*(?:に|が)?[、\s]*(?:なっ|成立|結ば)/i;
+ const nape=/(?:목덜미|뒷목|목\s*뒤(?:쪽)?|목\s*뒷부분|목덜미의\s*피부|경부|페로몬\s*(?:샘|선)|목(?=[을를에은는의이가도께]|\s|$)|うなじ|首筋|項|nape|\bneck\b)/i;
+ const biting=/(?:물(?:었|었다|어뜯|고\s*놓)|깨물(?:었|었다)|베어\s*물(?:었|었다)|깨물|깨문|물어(?!\s*(?:보|봤|볼|봐))|물고(?!\s*(?:늘어|있던\s*말))|물며|물면서|문\s*채|噛(?:ん|み|ま|む)|歯(?:を|が)[、\s]*(?:立|突き立|食い込)|이빨.{0,35}?(?:박|꽂|파묻|파고들)|송곳니.{0,35}?(?:박|꽂|파묻|파고들)|(?:bit|bitten|sank\s+(?:his|her|their)?\s*(?:teeth|fangs)|buried\s+(?:his|her|their)?\s*fangs))/i;
  const hypothetical=/(?:물(?:려고|을\s*뻔|수\s*있|고\s*싶|어야)|깨물(?:려고|고\s*싶)|각인(?:하려|하고\s*싶|할\s*생각|할\s*뻔|할\s*수|하지\s*않)|(?:would|could|might|wanted|tried|about\s+to)\s+(?:bite|bond|mark)|(?:if|만약).{0,25}(?:물|각인|bite|bond))/i;
  const negated=/(?:물지\s*않|물지\s*못|물지는\s*않|물린\s*것은\s*아니|각인(?:되지\s*않|이\s*되지\s*않|은\s*성립하지\s*않|하지\s*않|은\s*아니)|(?:did\s+not|didn't|never|wasn't)\s+(?:bite|bitten|bond|mark))/i;
  const memory=/(?:꿈속|꿈에서|상상(?:속|했|하며)|회상(?:했|하며|속)|과거를\s*떠올|예전에\s*각인|오래전\s*각인|(?:in\s+a\s+dream|imagined|flashback|remembered\s+(?:when|that)))/i;
@@ -29,7 +30,7 @@ Event shapes:
 - {"kind":"heat_start"|"rut_start"|"ovulation","person":"char"|"user","evidence":"..."} only for explicitly confirmed start/ovulation.
 - {"kind":"menstruation_start"|"menstruation_end","person":"char"|"user","evidence":"..."} ONLY when a new menstrual period has explicitly BEGUN or ENDED in the current messages. Merely saying someone is currently menstruating, has cramps, or talking about an existing period is NOT a new start event. Never repeat ongoing state each reply.
 - {"kind":"medication","person":"char"|"user","drug":"${DRUGS.join('|')}","use_mode":"normal"|"misuse"|"unlicensed","evidence":"..."} only if taken/administered, not simply discussed.
-- {"kind":"exposure","gestator":"char"|"user","donor":"char"|"user","penetration":true,"deposition":true,"depositions":integer,"evidence":"..."} ONLY if explicit confirmed penetration into a reproductive route AND confirmed direct internal ejaculate deposition. No guessing from ambiguous intimacy or vague implications. Count only explicitly confirmed depositions, default 1 if a single one confirmed.
+- {"kind":"exposure","gestator":"char"|"user","donor":"char"|"user","penetration":true,"deposition":true,"depositions":integer,"evidence":"..."} ONLY if explicit confirmed penetration into a reproductive route AND confirmed direct internal ejaculate deposition. Oral (mouth, tongue, throat) or external/surface deposition (face, chest, stomach, outside the body) is NOT an exposure. No guessing from ambiguous intimacy or vague implications. Count only explicitly confirmed depositions, default 1 if a single one confirmed.
 - {"kind":"bond","actor":"char"|"user","target":"char"|"user","biteLocation":"pheromone_nape","biteConfirmed":true,"evidence":"..."} ONLY when the current narration establishes an Alpha ACTUALLY biting an Omega on the nape/back of neck, OR explicitly reports the completed creation of their bond. The words "pheromone gland" are NOT required. Accept natural Korean descriptions (목덜미를 물었다, 뒷목에 송곳니를 박았다, 각인이 성립했다) and equivalent English descriptions. Determine actor/target using context and known secondary genders; never reverse roles. Do not treat mere desire, attempted bites, kisses, scents, hypotheticals, dreams, flashbacks or recollections of existing bonds as NEW events. Emit only certain completed current events, never an uncertain event. Current tracker state lists existing bonds under "bonds" and the mode under "multiBond": never re-emit an already listed bond; when multiBond is true an Alpha may establish a NEW bond with an additional Omega, but an Omega that is already bonded can never gain another Alpha.
 - {"kind":"bond_loss","person":"char"|"user","partner":"char"|"user","cause":"surgery"|"drug_adverse"|"death","evidence":"..."} ONLY for completed surgical removal, documented medication adverse loss, or death; never infer from ordinary separation.
 - {"kind":"pregnancy_reveal","person":"char"|"user","knower":"char"|"user","level":"suspected"|"confirmed","evidence":"..."}. Person is gestator; knower is one of the people.
@@ -77,6 +78,8 @@ export function parseModelOutput(raw,userText='',assistantText='',diagnostics=nu
    if(e.penetration!==true||e.deposition!==true||!Number.isInteger(e.depositions)||e.depositions<1||e.depositions>30)continue;
    // Disallow ambiguous single-word sexual-event evidence.
    if(e.evidence.length<12)continue;
+   // Oral or external deposition never qualifies as a reproductive-route exposure.
+   if(nonReproductiveDeposition(e.evidence)){if(Array.isArray(diagnostics))diagnostics.push({kind:'exposure',status:'rejected',reason:'non_reproductive_route',evidence:e.evidence.slice(0,120)});continue;}
   }
   if(e.kind==='vital_observation'&&!(['exhausted','tired','strained','neutral','rested','energized'].includes(e.condition)||['surge','strong','neutral','faint','suppressed'].includes(e.emission)))continue;
   if(e.kind==='preference'){

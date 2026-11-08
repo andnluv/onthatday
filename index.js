@@ -387,6 +387,31 @@ function updatePrompt(){
 }
 function refresh(){meta();syncCanon();state=branchState();updatePrompt();render();}
 function eventIDFor(messageKey,i){return `${messageKey}/e${i}`;}
+// Resolve the response that a chat message number belongs to: an assistant message is itself,
+// a USER message maps to the response right after it (analysis records are keyed by the response).
+function sourceAtIndex(n){
+ const chat=S().chat||[];
+ if(!Number.isInteger(n)||n<0||n>=chat.length)return null;
+ for(let i=n;i<chat.length;i++){
+  const m=chat[i];
+  // Messages hidden from the prompt (/hide, context-trimming extensions) carry is_system=true but are still
+  // ordinary roleplay turns, so an explicit pick may target them. Real system/narrator notes have extra.type.
+  if(!m||m.is_user||!String(m.mes||'').trim()||(m.is_system&&m.extra?.type))continue;
+  const pair=chat[i-1]?.is_user?chat[i-1]:null;
+  return {m,i,key:uniqKey(m,i),userText:String(pair?.mes||''),assistantText:String(m.mes||'')};
+ }return null;
+}
+// Returns {cancel:true} or {index:number|null}; blank = the latest response (previous behavior).
+function askMessageIndex(){
+ const raw=window.prompt('이 사건이 일어난 메시지 번호(SillyTavern의 #번호)를 입력하세요.\n사용자 메시지 번호면 그 바로 다음 응답에 기록됩니다.\n비워 두면 가장 최근 응답에 기록합니다.','');
+ if(raw===null)return {cancel:true};
+ const text=String(raw).trim().replace(/^#/,'');
+ if(!text)return {index:null};
+ const n=Number(text);
+ if(!Number.isInteger(n)||n<0){setStatus('메시지 번호는 0 이상의 정수로 입력하세요');return {cancel:true};}
+ if(!sourceAtIndex(n)){setStatus(`#${n} 이후에 기록할 응답 메시지가 없습니다`);return {cancel:true};}
+ return {index:n};
+}
 function sourceForCurrent(){
  const c=S(),chat=c.chat||[];
  for(let i=chat.length-1;i>=0;i--){
@@ -984,8 +1009,14 @@ async function handlePanelChange(e){
  const saved=(t.hasAttribute('data-connection')||t.dataset.custom||t.dataset.postprocess||t.hasAttribute('data-postprocess-scope'))?true:await persist();refresh();
  if(t.dataset.person)setStatus(saved?`${t.dataset.person.toUpperCase()} ${t.dataset.field==='secondary'?'ABO':'설정'} 변경 자동 저장 완료`:'채팅 설정 저장 실패 · 콘솔 확인');
 }
-async function addManualEvents(events){
- const m=meta(),src=sourceForCurrent();syncCanon();if(!m||!src)return setStatus('먼저 대화를 시작하세요');
+// Ask which message the event belongs to, record it there, and report where it landed.
+async function recordManualAt(events,label){
+ const where=askMessageIndex();if(where.cancel)return false;
+ const done=await addManualEvents(events,where.index);if(!done)return false;
+ setStatus(`${label} · #${done.index} 응답에 기록됨`);return true;
+}
+async function addManualEvents(events,atIndex=null){
+ const m=meta(),src=atIndex==null?sourceForCurrent():sourceAtIndex(atIndex);syncCanon();if(!m||!src)return setStatus(atIndex==null?'먼저 대화를 시작하세요':`#${atIndex} 이후에 기록할 응답 메시지가 없습니다`);
  if(!currentNpcReady(m))return setStatus('먼저 CHAR 추적 NPC를 선택하세요');
  const key=src.key,target=selectedNpcId(m),ledger=currentCharLedger(m);let rec=ledger[key]||{analyzed:false,events:[],manual:[]};
  if(rec.personaId&&rec.personaId!==m.userPersonaIdentity)return setStatus('이 응답은 이전 USER 페르소나의 기록입니다. 새 응답 뒤에 사건을 기록하세요.');
@@ -995,7 +1026,8 @@ async function addManualEvents(events){
   if(shared.length){const base=m.ledger[key]||{events:[],manual:[]};base.events.push(...shared);base.manual.push(...shared);base.personaId=m.userPersonaIdentity;m.ledger[key]=base;}
   rec.manual.push(...local);rec.events.push(...local);
  }else{rec.manual.push(...rows);rec.events.push(...rows);}
- rec.personaId=m.userPersonaIdentity;ledger[key]=rec;await persist();refresh();
+ rec.personaId=m.userPersonaIdentity;ledger[key]=rec;const saved=await persist();refresh();
+ return saved?{index:src.i}:false;
 }
 async function handlePanelClick(e){
  const t=e.target.closest('button');if(!t)return;
@@ -1042,14 +1074,19 @@ async function handlePanelClick(e){
   if(kind==='bond'){
    if(s.people[actor].secondary!=='alpha'||s.people[target].secondary!=='omega')return setStatus('각인은 알파 → 오메가만 가능합니다');
    if(!window.confirm('알파가 오메가의 목덜미 페로몬선을 실제로 물어 각인이 성립했습니까?'))return;
-   await addManualEvents([{kind:'bond',actor,target,person:actor,partner:target,biteLocation:'pheromone_nape',biteConfirmed:true}]);
+   const where=askMessageIndex();if(where.cancel)return;
+   const done=await addManualEvents([{kind:'bond',actor,target,person:actor,partner:target,biteLocation:'pheromone_nape',biteConfirmed:true}],where.index);
+   if(!done)return;
+   setStatus(`각인 사건 저장 완료 · #${done.index} 응답에 기록됨`);return;
   }else{
    const cause=window.prompt('상실 원인: surgery / drug_adverse / death','surgery');
    if(!['surgery','drug_adverse','death'].includes(cause))return;
    if(!window.confirm('각인 상실 사건이 서사에서 실제로 발생했습니까?'))return;
-   await addManualEvents([{kind:'bond_loss',person:actor,partner:target,cause}]);
+   const where=askMessageIndex();if(where.cancel)return;
+   const done=await addManualEvents([{kind:'bond_loss',person:actor,partner:target,cause}],where.index);
+   if(!done)return;
+   setStatus(`각인 상실 사건 저장 완료 · #${done.index} 응답에 기록됨`);return;
   }
-  setStatus('각인 사건 저장 완료');return;
  }
  if(act==='clearFixedField'||act==='resetInitialProfile'){
   if(working||postprocessBusy)return setStatus('진행 중인 분석·후처리가 끝난 뒤 초기화하세요.');
@@ -1073,9 +1110,8 @@ async function handlePanelClick(e){
   if(!['char','user'].includes(role)||!s?.people?.[role]?.menstruation.enabled)return setStatus('월경 추적이 활성화된 대상만 기록할 수 있습니다.');
   const isEnd=act==='recordMenstruationEnd';
   if(isEnd&&cycleForecast(s.people[role],s.clockHours,s.seed).menstruationStatus!=='active')return setStatus('현재 월경 중인 기록이 없습니다.');
-  if(!window.confirm(`${role.toUpperCase()}의 월경 ${isEnd?'종료':'시작'}를 현재 서사 시점에 기록할까요?`))return;
-  await addManualEvents([{kind:isEnd?'menstruation_end':'menstruation_start',person:role}]);
-  setStatus(`${role.toUpperCase()} 월경 ${isEnd?'종료':'시작'} 사건 기록 완료`);return;
+  if(!window.confirm(`${role.toUpperCase()}의 월경 ${isEnd?'종료':'시작'}를 기록할까요? (다음 창에서 기록할 메시지를 고를 수 있습니다)`))return;
+  await recordManualAt([{kind:isEnd?'menstruation_end':'menstruation_start',person:role}],`${role.toUpperCase()} 월경 ${isEnd?'종료':'시작'} 사건 기록 완료`);return;
  }
  if(act==='resetPostprocessCache'){
   if(postprocessBusy||working)return setStatus('진행 중인 후처리가 끝난 뒤 초기화하세요.');
@@ -1226,7 +1262,7 @@ async function handlePanelClick(e){
   const drug=el(`abop-drug-${role}`)?.value,mode=el(`abop-drug-mode-${role}`)?.value;
   if(!['oral_suppressant','long_suppressant','emergency_suppressant','scent_blocker','oral_contraceptive','emergency_contraceptive','symptom_inducer','cycle_inducer','unlicensed_mixture'].includes(drug))return;
   if(!['normal','misuse','unlicensed'].includes(mode))return;
-  await addManualEvents([{kind:'medication',person:role,drug,use_mode:mode}]);setStatus(`${role.toUpperCase()} 약물 복용 사건 기록 완료`);return;
+  await recordManualAt([{kind:'medication',person:role,drug,use_mode:mode}],`${role.toUpperCase()} 약물 복용 사건 기록 완료`);return;
  }
  if(act==='exposure'){
   if(pregnancyBlocked(meta()?.config))return setStatus(meta()?.config?.noPregnancyEver===true?'절대 임신 금지가 켜져 있어 임신 기록을 추가할 수 없습니다':'임신 기능이 꺼져 있습니다. 설정에서 ON으로 변경하세요');
@@ -1235,7 +1271,7 @@ async function handlePanelClick(e){
   const n=Number(window.prompt('이 장면에서 확인된 생식기관 내부 사정 횟수 (1~30)','1'));
   if(!Number.isInteger(n)||n<1||n>30)return setStatus('횟수는 1~30의 정수');
   if(!window.confirm('유효한 삽입과 생식기관 내부 사정이 모두 확인되었습니까?'))return;
-  await addManualEvents([{kind:'exposure',gestator,donor,penetration:true,deposition:true,depositions:n}]);return;
+  await recordManualAt([{kind:'exposure',gestator,donor,penetration:true,deposition:true,depositions:n}],'노출 사건 기록 완료');return;
  }
  if(act==='export'){
   const m=meta(false);if(!m)return;
