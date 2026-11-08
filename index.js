@@ -387,6 +387,28 @@ function updatePrompt(){
 }
 function refresh(){meta();syncCanon();state=branchState();updatePrompt();render();}
 function eventIDFor(messageKey,i){return `${messageKey}/e${i}`;}
+// Resolve the response that a chat message number belongs to: an assistant message is itself,
+// a USER message maps to the response right after it (analysis records are keyed by the response).
+function sourceAtIndex(n){
+ const chat=S().chat||[];
+ if(!Number.isInteger(n)||n<0||n>=chat.length)return null;
+ for(let i=n;i<chat.length;i++){
+  const m=chat[i];if(!m||m.is_system||m.is_user||!String(m.mes||'').trim())continue;
+  const pair=chat[i-1]?.is_user?chat[i-1]:null;
+  return {m,i,key:uniqKey(m,i),userText:String(pair?.mes||''),assistantText:String(m.mes||'')};
+ }return null;
+}
+// Returns {cancel:true} or {index:number|null}; blank = the latest response (previous behavior).
+function askMessageIndex(){
+ const raw=window.prompt('이 사건이 일어난 메시지 번호(SillyTavern의 #번호)를 입력하세요.\n사용자 메시지 번호면 그 바로 다음 응답에 기록됩니다.\n비워 두면 가장 최근 응답에 기록합니다.','');
+ if(raw===null)return {cancel:true};
+ const text=String(raw).trim().replace(/^#/,'');
+ if(!text)return {index:null};
+ const n=Number(text);
+ if(!Number.isInteger(n)||n<0){setStatus('메시지 번호는 0 이상의 정수로 입력하세요');return {cancel:true};}
+ if(!sourceAtIndex(n)){setStatus(`#${n} 이후에 기록할 응답 메시지가 없습니다`);return {cancel:true};}
+ return {index:n};
+}
 function sourceForCurrent(){
  const c=S(),chat=c.chat||[];
  for(let i=chat.length-1;i>=0;i--){
@@ -984,8 +1006,8 @@ async function handlePanelChange(e){
  const saved=(t.hasAttribute('data-connection')||t.dataset.custom||t.dataset.postprocess||t.hasAttribute('data-postprocess-scope'))?true:await persist();refresh();
  if(t.dataset.person)setStatus(saved?`${t.dataset.person.toUpperCase()} ${t.dataset.field==='secondary'?'ABO':'설정'} 변경 자동 저장 완료`:'채팅 설정 저장 실패 · 콘솔 확인');
 }
-async function addManualEvents(events){
- const m=meta(),src=sourceForCurrent();syncCanon();if(!m||!src)return setStatus('먼저 대화를 시작하세요');
+async function addManualEvents(events,atIndex=null){
+ const m=meta(),src=atIndex==null?sourceForCurrent():sourceAtIndex(atIndex);syncCanon();if(!m||!src)return setStatus(atIndex==null?'먼저 대화를 시작하세요':`#${atIndex} 이후에 기록할 응답 메시지가 없습니다`);
  if(!currentNpcReady(m))return setStatus('먼저 CHAR 추적 NPC를 선택하세요');
  const key=src.key,target=selectedNpcId(m),ledger=currentCharLedger(m);let rec=ledger[key]||{analyzed:false,events:[],manual:[]};
  if(rec.personaId&&rec.personaId!==m.userPersonaIdentity)return setStatus('이 응답은 이전 USER 페르소나의 기록입니다. 새 응답 뒤에 사건을 기록하세요.');
@@ -995,7 +1017,8 @@ async function addManualEvents(events){
   if(shared.length){const base=m.ledger[key]||{events:[],manual:[]};base.events.push(...shared);base.manual.push(...shared);base.personaId=m.userPersonaIdentity;m.ledger[key]=base;}
   rec.manual.push(...local);rec.events.push(...local);
  }else{rec.manual.push(...rows);rec.events.push(...rows);}
- rec.personaId=m.userPersonaIdentity;ledger[key]=rec;await persist();refresh();
+ rec.personaId=m.userPersonaIdentity;ledger[key]=rec;const saved=await persist();refresh();
+ return saved?{index:src.i}:false;
 }
 async function handlePanelClick(e){
  const t=e.target.closest('button');if(!t)return;
@@ -1042,14 +1065,19 @@ async function handlePanelClick(e){
   if(kind==='bond'){
    if(s.people[actor].secondary!=='alpha'||s.people[target].secondary!=='omega')return setStatus('각인은 알파 → 오메가만 가능합니다');
    if(!window.confirm('알파가 오메가의 목덜미 페로몬선을 실제로 물어 각인이 성립했습니까?'))return;
-   await addManualEvents([{kind:'bond',actor,target,person:actor,partner:target,biteLocation:'pheromone_nape',biteConfirmed:true}]);
+   const where=askMessageIndex();if(where.cancel)return;
+   const done=await addManualEvents([{kind:'bond',actor,target,person:actor,partner:target,biteLocation:'pheromone_nape',biteConfirmed:true}],where.index);
+   if(!done)return;
+   setStatus(`각인 사건 저장 완료 · #${done.index} 응답에 기록됨`);return;
   }else{
    const cause=window.prompt('상실 원인: surgery / drug_adverse / death','surgery');
    if(!['surgery','drug_adverse','death'].includes(cause))return;
    if(!window.confirm('각인 상실 사건이 서사에서 실제로 발생했습니까?'))return;
-   await addManualEvents([{kind:'bond_loss',person:actor,partner:target,cause}]);
+   const where=askMessageIndex();if(where.cancel)return;
+   const done=await addManualEvents([{kind:'bond_loss',person:actor,partner:target,cause}],where.index);
+   if(!done)return;
+   setStatus(`각인 상실 사건 저장 완료 · #${done.index} 응답에 기록됨`);return;
   }
-  setStatus('각인 사건 저장 완료');return;
  }
  if(act==='clearFixedField'||act==='resetInitialProfile'){
   if(working||postprocessBusy)return setStatus('진행 중인 분석·후처리가 끝난 뒤 초기화하세요.');

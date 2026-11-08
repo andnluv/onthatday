@@ -1,3 +1,4 @@
+import {nonReproductiveDeposition} from './exposure-route.mjs';
 /* ABO Pixel Tracker · standalone pure state engine. No third-party extension code. */
 import {anatomyDefault} from './profile.mjs';
 import {initialVitalBaseline,recalculateVitals,validVitalNumber,CONDITION_OBSERVATIONS,PHEROMONE_OBSERVATIONS} from './vitals.mjs';
@@ -31,7 +32,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   rate:{rise:.03,fertile:.14,peak:.30,fall:.06},
   sideEffectScale:1, windowCap:.85,
   oralContraceptiveEffectiveness:.85,emergencyContraceptiveReduction:.75,longSuppressantSuccess:.90,
-  style:'pixel',uiTheme:'auto', analysisMaxChars:4500
+  style:'pixel',uiTheme:'auto', 
 });
 // Symptoms are fictional narrative defaults, never clinical claims.
 export const ADVERSE_SYMPTOMS = Object.freeze({
@@ -226,6 +227,7 @@ export function eventChance(state,event){
  if(pregnancyBlocked(state.config))return {p:0,reason:'pregnancy_disabled'};
  const g=state.people[event.gestator],d=state.people[event.donor];
  if(!g||!d||!areCompatible(d,g)||event.penetration!==true||event.deposition!==true)return {p:0,reason:'gate_failed'};
+ if(nonReproductiveDeposition(event.evidence))return {p:0,reason:'non_reproductive_route'};
  if(g.pregnancy.status!=='none')return {p:0,reason:'already_pregnant'};
  const ov=ovulationHour(g,state.clockHours);
  const offset=Number.isFinite(ov)?state.clockHours-ov:NaN;
