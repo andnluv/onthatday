@@ -8,9 +8,9 @@ const PREF_LEVELS=['latent','liked','strongly_liked','disliked','restricted'];
 export function classifyBondEvidence(evidence){
  const t=String(evidence||'').trim();
  if(!t)return {status:'not_established',reason:'empty'};
- const explicit=/각인(?:이|을|은|도|까지)?\s*(?:성립(?:했|하였|된|했다|하여|됐)|완료(?:됐|되었|했)|새겨졌|새겼|맺어졌|맺었|이루어졌|완성(?:됐|되었|했|된))|(?:각인|본딩)(?:했(?:다|어|으며|고)|되었(?:다|어)|됐(?:다|어))|(?:bond(?:ed|ing)?|mark(?:ed|ing)?)\s+(?:was\s+)?(?:established|completed|formed)/i;
- const nape=/(?:목덜미|뒷목|목\s*뒤(?:쪽)?|목\s*뒷부분|목덜미의\s*피부|경부|목(?=[을를에은는의이가도께]|\s|$)|nape|\bneck\b)/i;
- const biting=/(?:물(?:었|었다|어뜯|고\s*놓)|깨물(?:었|었다)|베어\s*물(?:었|었다)|이빨.{0,35}?(?:박|꽂|파묻|파고들)|송곳니.{0,35}?(?:박|꽂|파묻|파고들)|(?:bit|bitten|sank\s+(?:his|her|their)?\s*(?:teeth|fangs)|buried\s+(?:his|her|their)?\s*fangs))/i;
+ const explicit=/각인(?:이|을|은|도|까지)?\s*(?:성립(?:했|하였|된|했다|하여|됐)|완료(?:됐|되었|했)|새겨졌|새겼|새기|남겼|남기|맺어졌|맺었|이루어졌|완성(?:됐|되었|했|된))|(?:각인|본딩)(?:했(?:다|어|으며|고)|되었(?:다|어)|됐(?:다|어))|(?:bond(?:ed|ing)?|mark(?:ed|ing)?)\s+(?:was\s+)?(?:established|completed|formed)|(?:番|つがい)[、\s]*(?:に|が)?[、\s]*(?:なっ|成立|結ば)/i;
+ const nape=/(?:목덜미|뒷목|목\s*뒤(?:쪽)?|목\s*뒷부분|목덜미의\s*피부|경부|페로몬\s*(?:샘|선)|목(?=[을를에은는의이가도께]|\s|$)|うなじ|首筋|項|nape|\bneck\b)/i;
+ const biting=/(?:물(?:었|었다|어뜯|고\s*놓)|깨물(?:었|었다)|베어\s*물(?:었|었다)|깨물|깨문|물어(?!\s*(?:보|봤|볼|봐))|물고(?!\s*(?:늘어|있던\s*말))|물며|물면서|문\s*채|噛(?:ん|み|ま|む)|歯(?:を|が)[、\s]*(?:立|突き立|食い込)|이빨.{0,35}?(?:박|꽂|파묻|파고들)|송곳니.{0,35}?(?:박|꽂|파묻|파고들)|(?:bit|bitten|sank\s+(?:his|her|their)?\s*(?:teeth|fangs)|buried\s+(?:his|her|their)?\s*fangs))/i;
  const hypothetical=/(?:물(?:려고|을\s*뻔|수\s*있|고\s*싶|어야)|깨물(?:려고|고\s*싶)|각인(?:하려|하고\s*싶|할\s*생각|할\s*뻔|할\s*수|하지\s*않)|(?:would|could|might|wanted|tried|about\s+to)\s+(?:bite|bond|mark)|(?:if|만약).{0,25}(?:물|각인|bite|bond))/i;
  const negated=/(?:물지\s*않|물지\s*못|물지는\s*않|물린\s*것은\s*아니|각인(?:되지\s*않|이\s*되지\s*않|은\s*성립하지\s*않|하지\s*않|은\s*아니)|(?:did\s+not|didn't|never|wasn't)\s+(?:bite|bitten|bond|mark))/i;
  const memory=/(?:꿈속|꿈에서|상상(?:속|했|하며)|회상(?:했|하며|속)|과거를\s*떠올|예전에\s*각인|오래전\s*각인|(?:in\s+a\s+dream|imagined|flashback|remembered\s+(?:when|that)))/i;
