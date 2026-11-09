@@ -41,8 +41,16 @@ function displayAlertKo(message,hideTruth=false){
  if(confirmed)return hideTruth?'':`${confirmed[1]}: 임신 판정 내부 확정 (인물의 인지 상태와 별개)`;
  const reason=raw.match(/^Exposure not rolled: (.+)$/);
  if(reason){
-  const reasons={pregnancy_disabled:'임신 기능 비활성',gate_failed:'필수 성립 조건 불충족',already_pregnant:'이미 임신 상태',ovulation_suppressed:'배란 억제'};
-  return `임신 가능성 판정 제외 · ${reasons[reason[1]]||reason[1]}`;
+  const reasons={
+   pregnancy_disabled:'임신 기능 비활성',
+   gate_failed:'필수 성립 조건 불충족',
+   already_pregnant:'이미 임신 상태',
+   ovulation_suppressed:'배란 억제',
+   outside_fertile_window:'가임 기간 밖 (임신 확률 0%)',
+   ovulation_unknown:'배란 시점 미확정',
+   non_reproductive_route:'구강·체외 사정'
+  };
+  return `임신 판정 없음 · ${reasons[reason[1]]||reason[1]}`;
  }
  return raw;
 }
